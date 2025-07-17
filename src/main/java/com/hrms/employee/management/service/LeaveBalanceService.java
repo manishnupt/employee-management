@@ -119,12 +119,12 @@ public class LeaveBalanceService {
     // }
 
     public void deductLeaveFromEmployee(String employeeId,Long leaveId) {
-        
+
         LeaveTracker leaveTracker=leaveTrackerRepository.findById(leaveId).orElseThrow(() -> new RuntimeException("Leave not found"));
         EmployeeLeaveBalance balance = leaveBalanceRepository.findByEmployeeIdAndLeaveTypeName(employeeId,leaveTracker.getLeaveType()).get();
         int days = leaveTracker.getEndDate().getDayOfYear() - leaveTracker.getStartDate().getDayOfYear() + 1;
         Double updateBalance = balance.getLeaveBalance() - days;
-        balance.setLeaveBalance(updateBalance); 
+        balance.setLeaveBalance(updateBalance);
         balance.setRemainingDays(updateBalance);
         leaveBalanceRepository.save(balance);
 
@@ -181,12 +181,10 @@ public class LeaveBalanceService {
 
     private LeaveBalanceDto mapToDto(EmployeeLeaveBalance balance) {
         LeaveBalanceDto dto = new LeaveBalanceDto();
-        // dto.setLeaveTypeId(balance.getLeaveTypeId());
         dto.setLeaveTypeName(balance.getLeaveTypeName());
-        // dto.setAllocatedDays(balance.getAllocatedDays());
-        // dto.setUsedDays(balance.getUsedDays());
+        dto.setLeaveBalance(balance.getLeaveBalance());
         dto.setCarryForwardDays(balance.getCarryForwardDays());
-        // dto.setRemainingDays(balance.getRemainingDays());
+        dto.setRemainingDays(balance.getRemainingDays());
         dto.setYear(balance.getYear());
         return dto;
     }

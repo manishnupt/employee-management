@@ -2,12 +2,13 @@ package com.hrms.employee.management.controller;
 
 import java.util.List;
 
+import com.hrms.employee.management.service.LeaveTrackerService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import com.hrms.employee.management.dao.LeaveTracker;
 import com.hrms.employee.management.dto.LeaveTrackerDto;
-import com.hrms.employee.management.service.LeaveTrackerService;
+import com.hrms.employee.management.dto.LeaveTrackerResponse;
 
 @RestController
 @RequestMapping("/employees/{employeeId}/leave-tracker")
@@ -21,8 +22,8 @@ public class LeaveTrackerController {
     }
 
     @PostMapping
-    public ResponseEntity<LeaveTracker> applyLeave(@PathVariable String employeeId, @RequestBody LeaveTrackerDto leaveTrackerDto) {
-        LeaveTracker leave = leaveTrackerService.applyLeave(employeeId, leaveTrackerDto);
+    public ResponseEntity<LeaveTrackerResponse> applyLeave(@PathVariable String employeeId, @RequestBody LeaveTrackerDto leaveTrackerDto) {
+        LeaveTrackerResponse leave = leaveTrackerService.applyLeave(employeeId, leaveTrackerDto);
         return ResponseEntity.ok(leave);
     }
 
