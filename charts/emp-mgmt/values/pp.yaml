@@ -1,0 +1,55 @@
+global: {}
+fullnameOverride: ""
+ServiceAccount:
+  automountServiceAccountToken: true
+  name: emp-mgmt
+Deployment:
+  name: emp-mgmt
+  annotations:
+    instrumentation.opentelemetry.io/inject-java: "trace/default"
+
+  replicas: 2
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  containers:
+    emp-mgmt:
+      image:
+        registry: "742428948447.dkr.ecr.ap-south-1.amazonaws.com"
+        repository: "mynx-use1-hrms-stage-hrms-ecr"
+        tag: "snapshot_emp_mgmt_jdu221"
+      imagePullPolicy: IfNotPresent
+      ports:
+        - containerPort: 9091
+          protocol: TCP
+          name: http
+      resources:
+        limits:
+          cpu: "2"
+          memory: "4Gi"
+        requests:
+          cpu: "1"
+          memory: "2Gi"
+      env:
+        SPRING_PROFILES_ACTIVE: "prod"
+        SPRING_DATASOURCE_URL: "jdbc:postgresql://mynx-use1-hrms-stage.czgkcums6o0w.ap-south-1.rds.amazonaws.com:5432/postgres"
+        SPRING_DATASOURCE_USERNAME: "postgres"
+        SPRING_DATASOURCE_PASSWORD: "hCUe:K[o9U#uIl56]6:QJB6TWfjw"
+        SPRING_JPA_HIBERNATE_DDL_AUTO: "none"
+        GEOLOCATION_OFFICE_LATITUDE: "18.5516"
+        GEOLOCATION_OFFICE_LONGITUDE: "73.8899"
+        DEFAULT_TENANT: "tomato"
+        TENANT_CONFIG_API_URL: "https://api.pp.hrms.work/api/v1/tenants/databases"
+        TENANT_MANAGEMENT: "http://tenant-mgmt.tenant-mgmt.svc.cluster.local:80"
+        AUTH_SERVICE_BASE_URL: "http://iam-service-mgmt.iam-service-mgmt.svc.cluster.local:80"
+        UTILITY_BASE_URL: "http://hrms-utility.hrms-utility.svc.cluster.local:80"
+        COMPANY_BASE_URL: "http://cmp-mgmt.cmp-mgmt.svc.cluster.local:80"
+Service:
+  emp-mgmt:
+    name: emp-mgmt
+    ports:
+      - port: 80
+        targetPort: 9091
+    sessionAffinity: None
