@@ -34,7 +34,7 @@ public class WFHSeriveImpl implements WFHService {
                 .startDate(workFromHomeRequest.getStartDate())
                 .endDate(workFromHomeRequest.getEndDate())
                 .reason(workFromHomeRequest.getReason())
-                .status("APPROVED")
+                .status("PENDING")
                 .build();
         workFromHome.setEmployee(employee);
 
