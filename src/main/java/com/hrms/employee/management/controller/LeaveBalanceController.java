@@ -4,6 +4,7 @@ import com.hrms.employee.management.dto.LeaveAssignmentDto;
 import com.hrms.employee.management.dto.LeaveBalanceDto;
 import com.hrms.employee.management.dto.BulkLeaveAssignmentDto;
 import com.hrms.employee.management.dto.LeaveDeductionDto;
+import com.hrms.employee.management.dto.LeaveTypeDto;
 import com.hrms.employee.management.service.LeaveBalanceService;
 import com.hrms.employee.management.service.LeaveDisbursalSchedulerService;
 
@@ -46,7 +47,7 @@ public class LeaveBalanceController {
     }
 
     @PostMapping("/initialize-for-new-leave-type")
-    public ResponseEntity<String> initializeLeaveBalanceForNewLeaveType(@RequestBody LeaveBalanceService.LeaveType leaveType) {
+    public ResponseEntity<String> initializeLeaveBalanceForNewLeaveType(@RequestBody LeaveTypeDto leaveType) {
         leaveBalanceService.initializeLeaveBalanceForNewLeaveType(leaveType);
         return ResponseEntity.ok("Leave balances initialized for new leave type");
     }
