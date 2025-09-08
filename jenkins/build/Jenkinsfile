@@ -6,7 +6,7 @@ java_hrms_generic(
         ecrRepoName: "mynx-use1-hrms-stage-hrms-ecr",
         gitRepoName: "employee-management",
         awsAccountId: "742428948447",
-        env: "pp",
+        env: "hrms-stage",
         awsRegion: "ap-south-1",
         buildContextPath: "",
         dockerFilePath: "Dockerfile",
