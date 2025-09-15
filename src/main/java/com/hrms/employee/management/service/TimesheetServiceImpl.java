@@ -3,6 +3,7 @@ package com.hrms.employee.management.service;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -117,6 +118,7 @@ public class TimesheetServiceImpl implements TimesheetService {
 
     @Override
     public TimesheetDto getTimesheetByEmployeeIdAndDate(String employeeId, LocalDate date) {
-        return convertToDto(timesheetRepository.findByEmployeeIdAndWorkDaate(employeeId,date));
+        Optional<Timesheet> timesheetByEmployeeIdAndWorkDate = timesheetRepository.findByEmployeeIdAndWorkDaate(employeeId, date);
+        return timesheetByEmployeeIdAndWorkDate.map(this::convertToDto).orElse(null);
     }
 }

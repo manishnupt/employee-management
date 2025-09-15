@@ -2,6 +2,7 @@ package com.hrms.employee.management.repository;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 import com.hrms.employee.management.dto.TimesheetDto;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -20,5 +21,5 @@ public interface TimesheetRepository extends JpaRepository<Timesheet, Long> {
     Timesheet findByworkDateAndEmployee_EmployeeId(LocalDate WorkDate, String employeeId);
 
     @Query("SELECT t FROM Timesheet t WHERE t.workDate = :date AND t.employee.employeeId = :id")
-    Timesheet findByEmployeeIdAndWorkDaate(String id,LocalDate date);
+    Optional<Timesheet> findByEmployeeIdAndWorkDaate(String id, LocalDate date);
 }
