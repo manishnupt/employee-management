@@ -21,5 +21,5 @@ public interface TimesheetRepository extends JpaRepository<Timesheet, Long> {
     Timesheet findByworkDateAndEmployee_EmployeeId(LocalDate WorkDate, String employeeId);
 
     @Query("SELECT t FROM Timesheet t WHERE t.workDate = :date AND t.employee.employeeId = :id")
-    Timesheet findByEmployeeIdAndWorkDaate(String id, LocalDate date);
+    Optional<Timesheet> findByEmployeeIdAndWorkDaate(String id, LocalDate date);
 }
