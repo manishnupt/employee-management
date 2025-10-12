@@ -42,6 +42,29 @@ public class WfhBalanceServiceImpl implements WfhBalanceService {
 
         employeeWfhRepository.save(employeeWfhBalance);
     }
+
+    @Override
+    public void disburseWfhBalance(Long employeeId, Long wfhTrackerId) {
+        EmployeeWfhBalance employeeWfhBalance = employeeWfhRepository.findById(employeeId)
+                .orElseThrow(() -> new RuntimeException("Employee not found"));
+
+        WFHTracker wfhTracker= wfhTrackerRepository.findById(wfhTrackerId).get();
+        if (wfhTracker == null) {
+            throw new RuntimeException("WFH Tracker not found");
+        }
+        
+        int days = wfhTracker.getEndDate().getDayOfYear() - wfhTracker.getStartDate().getDayOfYear() + 1;
+        if (days <= 0) {
+            throw new RuntimeException("Invalid WFH days");
+        }
+
+        int currentBalance = employeeWfhBalance.getWfhBalance();
+        employeeWfhBalance.setWfhBalance(currentBalance + days);
+
+        employeeWfhRepository.save(employeeWfhBalance);
+    }
+
+    
     
 
 

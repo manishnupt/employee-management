@@ -6,6 +6,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.hrms.employee.management.service.WfhBalanceService;
+import org.springframework.web.bind.annotation.RequestBody;
+
 
 @RestController
 @RequestMapping("/employee/wfh-balance")
@@ -18,6 +20,10 @@ public class WFHBalanceController {
     public void deductWfhBalance(Long employeeId, Long wfhTrackerId) {
         wfhBalanceService.deductWfhBalance(employeeId, wfhTrackerId);
     }
-    
+    //disbursal logic
+    @PostMapping("/{employeeId}/disburse/{wfhTrackerId}")
+    public void disburseWfhBalance(Long employeeId, Long wfhTrackerId) {
+        wfhBalanceService.disburseWfhBalance(employeeId, wfhTrackerId);
+    }
 
 }
