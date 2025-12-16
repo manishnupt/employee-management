@@ -1,9 +1,0 @@
-@Library(value="ci@master", changelog=false) _
-
-helm_generic([
-    directoryPath: "charts/emp-mgmt",
-    imageName: "mynx-use1-hrms-stage-hrms-ecr",
-    app: "emp-mgmt",
-    prefix: "mynx-use1",
-    image_tag_helm_path: ".Deployment.containers.emp-mgmt.image.tag"
-])
