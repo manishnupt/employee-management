@@ -2,8 +2,8 @@ package com.hrms.employee.management.dao;
 
 import java.time.LocalDate;
 
-import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -25,7 +25,7 @@ public class WFHTracker {
 
     @ManyToOne
     @JoinColumn(name = "employee_id", nullable = false)
-    @JsonBackReference
+    @JsonIgnoreProperties("wfhTrackers")
     private Employee employee;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")

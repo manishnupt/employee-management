@@ -81,14 +81,31 @@ public class EmployeeController {
         employeeService.assignGroupToEmployee(request.getHeader("authorization"),employeeId, groupId);
         return ResponseEntity.ok("group assigned successfully to employee");
     }
+    @PatchMapping("/{employeeId}/unassign-group/{groupId}")
+    public ResponseEntity<?> unassignGroupFromEmployee(
+            HttpServletRequest request,
+            @PathVariable String employeeId,
+            @PathVariable Long groupId) {
+        employeeService.unassignGroupFromEmployee(request.getHeader("authorization"), employeeId, groupId);
+        return ResponseEntity.ok("group unassigned successfully from employee");
+    }
 
     @PatchMapping("/{employeeId}/assign-manager/{managerEmpId}")
-    public ResponseEntity<?> assignGroupToEmployee(
+    public ResponseEntity<?> assignManagerToEmployee(
             @PathVariable String employeeId,
             @PathVariable String managerEmpId) {
         employeeService.assignManagerToEmployee(employeeId, managerEmpId);
         return ResponseEntity.ok("manager assigned successfully to employee");
     }
+
+    @DeleteMapping("/{employeeId}/unassign-manager/{managerEmpId}")
+    public ResponseEntity<?> unassignManagerToEmployee(
+            @PathVariable String employeeId,
+            @PathVariable String managerEmpId) {
+        employeeService.unassignManagerToEmployee(employeeId, managerEmpId);
+        return ResponseEntity.ok("manager unassigned successfully from employee");
+    }
+
     @GetMapping("/getEmployeeByKcRefId")
     public ResponseEntity<Employee> getEmployeeByKcRefId(@RequestParam String kcRefId) {
         Employee employee = employeeService.findEmployeesByKcRefId(kcRefId);

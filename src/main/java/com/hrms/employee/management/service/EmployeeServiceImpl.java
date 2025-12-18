@@ -260,6 +260,23 @@ public class EmployeeServiceImpl implements EmployeeService {
         String kcToken=getKeycloakToken(masterRealmDetails);
         grantAdminAccess(kcToken,employeeId,TenantContext.getCurrentTenant(),groupById.getKcGroupIdRef());
     }
+    @Override
+    @Transactional
+    public void unassignGroupFromEmployee(String token, String employeeId, Long groupId) {
+        Employee emp= employeeRepository.findById(employeeId)
+                .orElseThrow(() -> new RuntimeException("Employee not found"));
+        if(emp.getGroupId()==null || !emp.getGroupId().equals(groupId)){
+            throw new RuntimeException("Group not assigned to this employee");
+        }
+        emp.setGroupId(null);
+        employeeRepository.save(emp);
+        log.info("unassigned group from user");
+        RoleGroupExtResponse groupById = getGroupById(groupId);
+        log.info("retreived data of group:{}",groupById);
+        Map<String,Object> masterRealmDetails =getMasterRealmDetails();
+        String kcToken=getKeycloakToken(masterRealmDetails);
+        revokeAdminAccess(kcToken,employeeId,TenantContext.getCurrentTenant(),groupById.getKcGroupIdRef());
+    }
 
     public RoleGroupExtResponse getGroupById(Long groupId) {
 
@@ -300,6 +317,21 @@ public class EmployeeServiceImpl implements EmployeeService {
         makeApiCall(uriBuilder.toUriString(), HttpMethod.GET, entity, Void.class,
                 ErrorCodes.KEYCLOAK_ADMIN_ACCESS_ERROR, "Failed to grant admin access");
     }
+    public void revokeAdminAccess(String token, String userId, String realmName,String groupId) {
+        log.info("inside revokeAdmin aceess with token :{}",token);
+        String url = iamServiceBaseUrl + Constants.REVOKE_ADMIN_ACCESS;
+        log.info("trying to get remove the group to the user in keycloak, with url :{} and the groupId is :{}",url,groupId);
+
+        UriComponentsBuilder uriBuilder = UriComponentsBuilder.fromHttpUrl(url)
+                .queryParam("realmName", realmName)
+                .queryParam("userId", userId)
+                .queryParam("groupId",groupId);
+
+        HttpEntity<Void> entity = new HttpEntity<>(createHeaders(token));
+
+        makeApiCall(uriBuilder.toUriString(), HttpMethod.GET, entity, Void.class,
+                ErrorCodes.KEYCLOAK_ADMIN_ACCESS_ERROR, "Failed to revoke admin access");
+    }
     private <T> ResponseEntity<T> makeApiCall(String url, HttpMethod method, HttpEntity<?> entity, Class<T> responseType, int errorCode, String errorMessage) {
         try {
             return restTemplate.exchange(url, method, entity, responseType);
@@ -317,6 +349,18 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new RuntimeException("Manager already present");
         }
         emp.setAssignedManagerId(managerEmpId);
+        employeeRepository.save(emp);
+    }
+
+
+    @Override
+    public void unassignManagerToEmployee(String employeeId, String managerEmpId) {
+        Employee emp= employeeRepository.findById(employeeId)
+                .orElseThrow(() -> new RuntimeException("Employee not found"));
+        if(emp.getAssignedManagerId()==null || !emp.getAssignedManagerId().equals(managerEmpId)){
+            throw new RuntimeException("Manager not assigned to this employee");
+        }
+        emp.setAssignedManagerId(null);
         employeeRepository.save(emp);
     }
 
