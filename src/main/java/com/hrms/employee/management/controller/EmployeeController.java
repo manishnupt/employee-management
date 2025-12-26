@@ -81,12 +81,11 @@ public class EmployeeController {
         employeeService.assignGroupToEmployee(request.getHeader("authorization"),employeeId, groupId);
         return ResponseEntity.ok("group assigned successfully to employee");
     }
-    @PatchMapping("/{employeeId}/unassign-group/{groupId}")
+    @PatchMapping("/{employeeId}/unassign-group")
     public ResponseEntity<?> unassignGroupFromEmployee(
             HttpServletRequest request,
-            @PathVariable String employeeId,
-            @PathVariable Long groupId) {
-        employeeService.unassignGroupFromEmployee(request.getHeader("authorization"), employeeId, groupId);
+            @PathVariable String employeeId) {
+        employeeService.unassignGroupFromEmployee(request.getHeader("authorization"), employeeId);
         return ResponseEntity.ok("group unassigned successfully from employee");
     }
 

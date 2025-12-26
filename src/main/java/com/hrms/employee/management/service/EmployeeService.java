@@ -28,5 +28,5 @@ public interface EmployeeService {
     Employee findEmployeesByKcRefId(String kcRefId);
     EmployeeReportResponse getEmployeeReportById(String employeeId,int month,int year);
     void unassignManagerToEmployee(String employeeId, String managerEmpId);
-    void unassignGroupFromEmployee(String header, String employeeId, Long groupId);
+    void unassignGroupFromEmployee(String header, String employeeId);
 }

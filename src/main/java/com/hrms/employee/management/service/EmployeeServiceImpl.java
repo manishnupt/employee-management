@@ -262,20 +262,20 @@ public class EmployeeServiceImpl implements EmployeeService {
     }
     @Override
     @Transactional
-    public void unassignGroupFromEmployee(String token, String employeeId, Long groupId) {
+    public void unassignGroupFromEmployee(String token, String employeeId) {
         Employee emp= employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
-        if(emp.getGroupId()==null || !emp.getGroupId().equals(groupId)){
+        if(emp.getGroupId()==null){
             throw new RuntimeException("Group not assigned to this employee");
         }
-        emp.setGroupId(null);
-        employeeRepository.save(emp);
-        log.info("unassigned group from user");
+        Long groupId=emp.getGroupId();
         RoleGroupExtResponse groupById = getGroupById(groupId);
         log.info("retreived data of group:{}",groupById);
         Map<String,Object> masterRealmDetails =getMasterRealmDetails();
         String kcToken=getKeycloakToken(masterRealmDetails);
-        revokeAdminAccess(kcToken,employeeId,TenantContext.getCurrentTenant(),groupById.getKcGroupIdRef());
+        removeUserFromGroup(kcToken,employeeId,TenantContext.getCurrentTenant(),groupById.getKcGroupIdRef());
+        emp.setGroupId(null);
+        employeeRepository.save(emp);
     }
 
     public RoleGroupExtResponse getGroupById(Long groupId) {
@@ -317,9 +317,9 @@ public class EmployeeServiceImpl implements EmployeeService {
         makeApiCall(uriBuilder.toUriString(), HttpMethod.GET, entity, Void.class,
                 ErrorCodes.KEYCLOAK_ADMIN_ACCESS_ERROR, "Failed to grant admin access");
     }
-    public void revokeAdminAccess(String token, String userId, String realmName,String groupId) {
-        log.info("inside revokeAdmin aceess with token :{}",token);
-        String url = iamServiceBaseUrl + Constants.REVOKE_ADMIN_ACCESS;
+    public void removeUserFromGroup(String token, String userId, String realmName,String groupId) {
+        log.info("inside removeUserFromGroup where token is{}",token);
+        String url = iamServiceBaseUrl + Constants.REMOVE_GROUP_ACCESS;
         log.info("trying to get remove the group to the user in keycloak, with url :{} and the groupId is :{}",url,groupId);
 
         UriComponentsBuilder uriBuilder = UriComponentsBuilder.fromHttpUrl(url)
