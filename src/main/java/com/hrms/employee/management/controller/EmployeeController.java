@@ -2,6 +2,7 @@ package com.hrms.employee.management.controller;
 
 import java.util.List;
 
+import com.hrms.employee.management.dto.EmployeeUiResponse;
 import com.hrms.employee.management.utility.TenantContext;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
@@ -39,8 +40,8 @@ public class EmployeeController {
     }
 
     @GetMapping("/{employeeId}")
-    public ResponseEntity<Employee> getEmployeeById(@PathVariable String employeeId) {
-        Employee employee = employeeService.getEmployeeById(employeeId);
+    public ResponseEntity<EmployeeUiResponse> getEmployeeById(@PathVariable String employeeId) {
+        EmployeeUiResponse employee = employeeService.getEmployeeById(employeeId);
         return ResponseEntity.ok(employee);
     }
 

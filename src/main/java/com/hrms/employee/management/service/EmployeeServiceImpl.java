@@ -95,9 +95,17 @@ public class EmployeeServiceImpl implements EmployeeService {
     }
 
     @Override
-    public Employee getEmployeeById(String employeeId) {
-        return employeeRepository.findById(employeeId)
+    public EmployeeUiResponse getEmployeeById(String employeeId) {
+        Employee employee = employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
+        Employee manager= null;
+        if(employee.getAssignedManagerId()!=null){
+            manager= employeeRepository.findById(employee.getAssignedManagerId())
+                    .orElseThrow(() -> new RuntimeException("Manager not found"));
+            log.info("manager name is :{}",manager.getName());
+        }
+        return employeeMapper.
+                toUiResponse(employee,manager);
     }
 
     @Override

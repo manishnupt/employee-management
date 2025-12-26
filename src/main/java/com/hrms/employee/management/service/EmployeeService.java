@@ -6,11 +6,12 @@ import com.hrms.employee.management.dao.Employee;
 import com.hrms.employee.management.dto.EmployeeCountDto;
 import com.hrms.employee.management.dto.EmployeeDto;
 import com.hrms.employee.management.dto.EmployeeReportResponse;
+import com.hrms.employee.management.dto.EmployeeUiResponse;
 
 public interface EmployeeService {
     Employee createEmployee(EmployeeDto employeeDto, String userId);
     Employee updateEmployee(String employeeId, EmployeeDto employeeDto);
-    Employee getEmployeeById(String employeeId);
+    EmployeeUiResponse getEmployeeById(String employeeId);
     List<Employee> getAllEmployees();
     EmployeeCountDto getEmployeeCounts();
 

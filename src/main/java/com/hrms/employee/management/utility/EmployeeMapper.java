@@ -1,5 +1,6 @@
 package com.hrms.employee.management.utility;
 
+import com.hrms.employee.management.dto.EmployeeUiResponse;
 import com.hrms.employee.management.dto.GenerateTokenRequest;
 import org.springframework.stereotype.Component;
 
@@ -56,5 +57,31 @@ public class EmployeeMapper {
         employee.setJobType(dto.getJobType());
         employee.setJobStatus(dto.getJobStatus());
         employee.setJobDescription(dto.getJobDescription());
+    }
+
+    public EmployeeUiResponse toUiResponse(Employee employee, Employee manager) {
+        EmployeeUiResponse response = new EmployeeUiResponse();
+        response.setName(employee.getName());
+        response.setUsername(employee.getUsername());
+        response.setRole(employee.getRole());
+        response.setEmail(employee.getEmail());
+        response.setPhone(employee.getPhone());
+        response.setAddress(employee.getAddress());
+        response.setCity(employee.getCity());
+        response.setState(employee.getState());
+        response.setZipCode(employee.getZipCode());
+        response.setCountry(employee.getCountry());
+        response.setJobTitle(employee.getJobTitle());
+        response.setProject(employee.getProject());
+        response.setJobType(employee.getJobType());
+        response.setJobStatus(employee.getJobStatus());
+        response.setJobDescription(employee.getJobDescription());
+        if(employee.getAssignedManagerId()!=null) {
+            EmployeeUiResponse.ManagerInfoResponse managerInfo = new EmployeeUiResponse.ManagerInfoResponse();
+            managerInfo.setManagerId(manager.getEmployeeId());
+            managerInfo.setName(employee.getName());
+            response.setAssignedManager(managerInfo);
+        }
+        return response;
     }
 }
