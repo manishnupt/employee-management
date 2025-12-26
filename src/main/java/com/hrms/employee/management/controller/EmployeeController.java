@@ -97,11 +97,10 @@ public class EmployeeController {
         return ResponseEntity.ok("manager assigned successfully to employee");
     }
 
-    @DeleteMapping("/{employeeId}/unassign-manager/{managerEmpId}")
+    @DeleteMapping("/{employeeId}/unassign-manager")
     public ResponseEntity<?> unassignManagerToEmployee(
-            @PathVariable String employeeId,
-            @PathVariable String managerEmpId) {
-        employeeService.unassignManagerToEmployee(employeeId, managerEmpId);
+            @PathVariable String employeeId) {
+        employeeService.unassignManagerToEmployee(employeeId);
         return ResponseEntity.ok("manager unassigned successfully from employee");
     }
 

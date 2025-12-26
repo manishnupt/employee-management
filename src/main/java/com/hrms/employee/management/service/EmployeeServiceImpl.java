@@ -354,10 +354,10 @@ public class EmployeeServiceImpl implements EmployeeService {
 
 
     @Override
-    public void unassignManagerToEmployee(String employeeId, String managerEmpId) {
+    public void unassignManagerToEmployee(String employeeId) {
         Employee emp= employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
-        if(emp.getAssignedManagerId()==null || !emp.getAssignedManagerId().equals(managerEmpId)){
+        if(emp.getAssignedManagerId()==null ){
             throw new RuntimeException("Manager not assigned to this employee");
         }
         emp.setAssignedManagerId(null);
