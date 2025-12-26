@@ -329,7 +329,7 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         HttpEntity<Void> entity = new HttpEntity<>(createHeaders(token));
 
-        makeApiCall(uriBuilder.toUriString(), HttpMethod.GET, entity, Void.class,
+        makeApiCall(uriBuilder.toUriString(), HttpMethod.DELETE, entity, Void.class,
                 ErrorCodes.KEYCLOAK_ADMIN_ACCESS_ERROR, "Failed to revoke admin access");
     }
     private <T> ResponseEntity<T> makeApiCall(String url, HttpMethod method, HttpEntity<?> entity, Class<T> responseType, int errorCode, String errorMessage) {
