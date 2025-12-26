@@ -81,7 +81,7 @@ public class EmployeeController {
         employeeService.assignGroupToEmployee(request.getHeader("authorization"),employeeId, groupId);
         return ResponseEntity.ok("group assigned successfully to employee");
     }
-    @PatchMapping("/{employeeId}/unassign-group")
+    @DeleteMapping("/{employeeId}/unassign-group")
     public ResponseEntity<?> unassignGroupFromEmployee(
             HttpServletRequest request,
             @PathVariable String employeeId) {
