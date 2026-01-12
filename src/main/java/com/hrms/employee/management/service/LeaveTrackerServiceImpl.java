@@ -3,6 +3,7 @@ package com.hrms.employee.management.service;
 import java.util.List;
 import java.util.Optional;
 
+import com.hrms.employee.management.exceptions.BusinessException;
 import org.springframework.stereotype.Service;
 
 import com.hrms.employee.management.dao.Employee;
@@ -38,19 +39,19 @@ public class LeaveTrackerServiceImpl implements LeaveTrackerService {
 
         List<EmployeeLeaveBalance> employeeLeaveBalance =employeeLeaveBalanceRepository.findByEmployeeIdAndIsActiveTrue(employeeId);
         if (employeeLeaveBalance.isEmpty()) {
-            throw new RuntimeException("No active leave balance found for employee");
+            throw new BusinessException("No active leave balance found for employee");
         }
         Optional<EmployeeLeaveBalance> leaveBalance = employeeLeaveBalance.stream()
                 .filter(balance -> balance.getLeaveTypeName().equals(leaveTrackerDto.getLeaveType()))
                 .findFirst();
 
         if (!leaveBalance.isPresent()) {
-            throw new RuntimeException("Leave type not found in employee's leave balance");
+            throw new BusinessException("Leave type not found in employee's leave balance");
 
         }
         int days = leaveTrackerDto.getEndDate().getDayOfYear() - leaveTrackerDto.getStartDate().getDayOfYear() + 1;
         if (days > leaveBalance.get().getLeaveBalance()) {
-            throw new RuntimeException("Insufficient leave balance for the requested leave type");
+            throw new BusinessException("Insufficient leave balance for the requested leave type");
         }
         LeaveTracker leaveTracker = new LeaveTracker();
         leaveTracker.setEmployee(employee);
