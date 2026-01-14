@@ -3,6 +3,7 @@ package com.hrms.employee.management.service;
 import java.time.LocalDate;
 import java.util.List;
 
+import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 
 import com.hrms.employee.management.dao.Employee;
@@ -11,6 +12,7 @@ import com.hrms.employee.management.dto.WFHTrackerRequest;
 import com.hrms.employee.management.repository.EmployeeRepository;
 import com.hrms.employee.management.repository.WFHTrackerRepository;
 
+@Log4j2
 @Service
 public class WFHSeriveImpl implements WFHService {
 
@@ -36,6 +38,9 @@ public class WFHSeriveImpl implements WFHService {
                 .status("PENDING")
                 .build();
         workFromHome.setEmployee(employee);
+        log.info("Creating action item for WFH request");
+
+        actionItemService.createActionItem(employeeId,workFromHome,employee.getAssignedManagerId());
 
         WFHTracker wfhTracker = wfhRepository.save(workFromHome);
         return wfhTracker;

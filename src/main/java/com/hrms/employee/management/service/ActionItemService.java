@@ -45,6 +45,7 @@ public class ActionItemService {
                     assignedManagerId);
         }
         else if(object instanceof WFHTracker) {
+            log.info("Creating WFH action item");
             request = ActionItemHelper.convertToWFHRequest((WFHTracker)object, employeeId,
                     assignedManagerId);
         }
