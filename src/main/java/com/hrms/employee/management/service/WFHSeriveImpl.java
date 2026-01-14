@@ -39,10 +39,11 @@ public class WFHSeriveImpl implements WFHService {
                 .build();
         workFromHome.setEmployee(employee);
         log.info("Creating action item for WFH request");
-
-        actionItemService.createActionItem(employeeId,workFromHome,employee.getAssignedManagerId());
-
         WFHTracker wfhTracker = wfhRepository.save(workFromHome);
+
+
+        actionItemService.createActionItem(employeeId,wfhTracker,employee.getAssignedManagerId());
+
         return wfhTracker;
     }
 
