@@ -3,6 +3,7 @@ package com.hrms.employee.management.service;
 import java.time.LocalDate;
 import java.util.List;
 
+import com.hrms.employee.management.dto.WFHTrackerResponse;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.stereotype.Service;
 
@@ -65,6 +66,18 @@ public class WFHSeriveImpl implements WFHService {
     public WFHTracker getWFHByDate(String employeeId, LocalDate date) {
         WFHTracker wfhTrackers = wfhRepository.findByEmployeeIdAndDate(employeeId,date);
         return wfhTrackers;
+    }
+
+    @Override
+    public List<WFHTrackerResponse> getWfhReportByEmployeeId(String employeeId, LocalDate startDate, LocalDate endDate) {
+        List<WFHTracker> wfhTracker= wfhRepository.findByEmployee_EmployeeIdAndStartDateGreaterThanEqualAndEndDateLessThanEqual(employeeId, startDate, endDate);
+        return wfhTracker.stream().map(wfh -> new WFHTrackerResponse(
+                wfh.getId(),
+                wfh.getStartDate(),
+                wfh.getEndDate(),
+                wfh.getReason(),
+                wfh.getStatus()
+        )).toList();
     }
 
 }

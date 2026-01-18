@@ -1,5 +1,6 @@
 package com.hrms.employee.management.service;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -71,6 +72,11 @@ public class LeaveTrackerServiceImpl implements LeaveTrackerService {
     public LeaveTracker getLeaveById(Long id) {
         return leaveTrackerRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Leave not found"));
+    }
+
+    @Override
+    public List<LeaveTracker> getLeavesReportByEmployeeId(String employeeId, LocalDate startDate, LocalDate endDate) {
+        return leaveTrackerRepository.findByEmployee_EmployeeIdAndStartDateGreaterThanEqualAndEndDateLessThanEqual(employeeId, startDate, endDate);
     }
 
     @Override

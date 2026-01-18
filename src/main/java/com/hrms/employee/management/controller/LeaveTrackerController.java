@@ -1,8 +1,10 @@
 package com.hrms.employee.management.controller;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import com.hrms.employee.management.service.LeaveTrackerService;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -37,5 +39,13 @@ public class LeaveTrackerController {
     public ResponseEntity<List<LeaveTracker>> getLeaveHistory(@PathVariable String employeeId) {
         List<LeaveTracker> leaveHistory = leaveTrackerService.getLeaveHistory(employeeId);
         return ResponseEntity.ok(leaveHistory);
+    }
+
+    @GetMapping("/reports/history")
+    public ResponseEntity<List<LeaveTracker>> getAllLeaves(@PathVariable String employeeId,
+                                                           @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+                                                           @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate){
+        List<LeaveTracker> leaves = leaveTrackerService.getLeavesReportByEmployeeId(employeeId,startDate,endDate);
+        return ResponseEntity.ok(leaves);
     }
 }

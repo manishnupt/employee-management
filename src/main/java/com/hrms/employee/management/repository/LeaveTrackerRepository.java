@@ -16,4 +16,6 @@ public interface LeaveTrackerRepository extends JpaRepository<LeaveTracker, Long
     List<LeaveTracker> findByEmployeeAndMonth(@Param("employeeId") String employeeId, @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate);
 
+    @Query("SELECT l FROM LeaveTracker l WHERE l.employee.employeeId = :employeeId AND l.startDate >= :startDate AND l.endDate <= :endDate")
+    List<LeaveTracker> findByEmployee_EmployeeIdAndStartDateGreaterThanEqualAndEndDateLessThanEqual(String employeeId, LocalDate startDate, LocalDate endDate);
 }

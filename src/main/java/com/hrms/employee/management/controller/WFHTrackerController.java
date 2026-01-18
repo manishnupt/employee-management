@@ -3,6 +3,8 @@ package com.hrms.employee.management.controller;
 import java.time.LocalDate;
 import java.util.List;
 
+import com.hrms.employee.management.dto.TimesheetDto;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,6 +18,7 @@ import com.hrms.employee.management.dto.WFHTrackerRequest;
 import com.hrms.employee.management.dao.WFHTracker;
 import com.hrms.employee.management.service.WFHService;
 import org.springframework.web.bind.annotation.RequestParam;
+import com.hrms.employee.management.dto.WFHTrackerResponse;
 
 
 @RestController
@@ -49,5 +52,13 @@ public class WFHTrackerController {
     public ResponseEntity<WFHTracker> getWFHByDate(@PathVariable String employeeId, @RequestParam LocalDate date) {
         WFHTracker wfhTracker = wfhService.getWFHByDate(employeeId,date);
         return ResponseEntity.ok(wfhTracker);
+    }
+
+    @GetMapping("/reports/history")
+    public ResponseEntity<List<WFHTrackerResponse>> getTimesheetHistory(@PathVariable String employeeId,
+                                                                  @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+                                                                  @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate){
+        List<WFHTrackerResponse> wfhResponse = wfhService.getWfhReportByEmployeeId(employeeId,startDate,endDate);
+        return ResponseEntity.ok(wfhResponse);
     }
 }
