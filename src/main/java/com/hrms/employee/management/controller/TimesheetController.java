@@ -53,7 +53,7 @@ public class TimesheetController {
         return ResponseEntity.ok(timesheetEntry);
     }
     @GetMapping("/reports/history")
-    public ResponseEntity<List<TimesheetDto>> getTimesheetHistory(@RequestParam String employeeId,
+    public ResponseEntity<List<TimesheetDto>> getTimesheetHistory(@PathVariable String employeeId,
                                                                   @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
                                                                   @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate){
         List<TimesheetDto> timesheetHistory = timesheetService.getTimesheetReportByEmployeeId(employeeId,startDate,endDate);
