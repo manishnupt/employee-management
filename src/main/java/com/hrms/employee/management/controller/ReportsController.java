@@ -17,5 +17,6 @@ public class ReportsController {
     @GetMapping("/by-date/{eployeeId}/date/{date}")
     public String getReportByDate(@PathVariable String employeeId, @PathVariable String date) {
        // return reportService.generateReportByDate(employeeId, date);
+        return null;
     }
 }
