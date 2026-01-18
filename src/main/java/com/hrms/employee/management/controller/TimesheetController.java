@@ -3,6 +3,7 @@ package com.hrms.employee.management.controller;
 import java.time.LocalDate;
 import java.util.List;
 
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -50,6 +51,13 @@ public class TimesheetController {
     public ResponseEntity<TimesheetDto> getTimesheetByDate(@PathVariable String employeeId,@PathVariable LocalDate date) {
         TimesheetDto timesheetEntry = timesheetService.getTimesheetByEmployeeIdAndDate(employeeId,date);
         return ResponseEntity.ok(timesheetEntry);
+    }
+    @GetMapping("/reports/history")
+    public ResponseEntity<List<TimesheetDto>> getTimesheetHistory(@RequestParam String employeeId,
+                                                                  @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+                                                                  @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate){
+        List<TimesheetDto> timesheetHistory = timesheetService.getTimesheetReportByEmployeeId(employeeId,startDate,endDate);
+        return ResponseEntity.ok(timesheetHistory);
     }
 
 }

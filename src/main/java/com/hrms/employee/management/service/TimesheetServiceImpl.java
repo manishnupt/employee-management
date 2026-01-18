@@ -125,4 +125,10 @@ public class TimesheetServiceImpl implements TimesheetService {
         else
             return new TimesheetDto();
     }
+
+    @Override
+    public List<TimesheetDto> getTimesheetReportByEmployeeId(String employeeId, LocalDate startDate, LocalDate endDate) {
+        List<Timesheet> timesheets = timesheetRepository.findByEmployee_EmployeeIdAndWorkDateBetween(employeeId, startDate, endDate);
+        return timesheets.stream().map(this::convertToDto).collect(Collectors.toList());
+    }
 }
