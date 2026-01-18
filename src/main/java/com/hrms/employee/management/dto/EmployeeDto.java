@@ -2,8 +2,11 @@ package com.hrms.employee.management.dto;
 
 import lombok.Data;
 
+import java.util.UUID;
+
 @Data
 public class EmployeeDto {
+    private UUID id;
     private String name;
     private String username;
     private String role;
