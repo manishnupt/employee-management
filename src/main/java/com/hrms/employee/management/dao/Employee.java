@@ -40,7 +40,10 @@ public class Employee {
 	private Long groupId;
 	private String kcReferenceId;
 	private String assignedManagerId;
-	
+
+	@Column(name = "deleted", nullable = false)
+	private boolean deleted = false;
+
 	@OneToMany(mappedBy = "employee", cascade = CascadeType.ALL, orphanRemoval = true)
 	@JsonBackReference
     private List<LeaveTracker> leaveHistory;

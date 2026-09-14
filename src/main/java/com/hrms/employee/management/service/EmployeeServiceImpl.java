@@ -97,6 +97,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Override
     public EmployeeUiResponse getEmployeeById(String employeeId) {
         Employee employee = employeeRepository.findById(employeeId)
+                .filter(emp -> !emp.isDeleted())
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
         Employee manager= null;
         if(employee.getAssignedManagerId()!=null){
@@ -110,7 +111,20 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     public List<Employee> getAllEmployees() {
-        return employeeRepository.findAll();
+        return employeeRepository.findByDeletedFalse();
+    }
+
+    @Override
+    @Transactional
+    public void deleteEmployee(String employeeId) {
+        Employee employee = employeeRepository.findById(employeeId)
+                .orElseThrow(() -> new RuntimeException("Employee not found"));
+        if (employee.isDeleted()) {
+            throw new RuntimeException("Employee already deleted");
+        }
+        employee.setDeleted(true);
+        employeeRepository.save(employee);
+        log.info("soft deleted employee with id: {}", employeeId);
     }
 
     @Override
