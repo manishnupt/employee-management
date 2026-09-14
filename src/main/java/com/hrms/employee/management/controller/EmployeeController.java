@@ -5,6 +5,7 @@ import java.util.List;
 import com.hrms.employee.management.dto.EmployeeUiResponse;
 import com.hrms.employee.management.utility.TenantContext;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -52,8 +53,10 @@ public class EmployeeController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Employee>> getAllEmployees() {
-        List<Employee> employees = employeeService.getAllEmployees();
+    public ResponseEntity<Page<Employee>> getAllEmployees(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        Page<Employee> employees = employeeService.getAllEmployees(page, size);
         return ResponseEntity.ok(employees);
     }
     

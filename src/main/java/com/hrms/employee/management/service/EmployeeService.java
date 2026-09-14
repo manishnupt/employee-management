@@ -2,6 +2,8 @@ package com.hrms.employee.management.service;
 
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+
 import com.hrms.employee.management.dao.Employee;
 import com.hrms.employee.management.dto.EmployeeCountDto;
 import com.hrms.employee.management.dto.EmployeeDto;
@@ -12,7 +14,7 @@ public interface EmployeeService {
     Employee createEmployee(EmployeeDto employeeDto, String userId);
     Employee updateEmployee(String employeeId, EmployeeDto employeeDto);
     EmployeeUiResponse getEmployeeById(String employeeId);
-    List<Employee> getAllEmployees();
+    Page<Employee> getAllEmployees(int page, int size);
     EmployeeCountDto getEmployeeCounts();
 
     String onboardUserInKeycloak(EmployeeDto employeeDto, String currentTenant);
