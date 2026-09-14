@@ -3,6 +3,7 @@ package com.hrms.employee.management.controller;
 import java.util.List;
 
 import com.hrms.employee.management.dto.EmployeeUiResponse;
+import com.hrms.employee.management.utility.EmployeeSearchType;
 import com.hrms.employee.management.utility.TenantContext;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Page;
@@ -54,9 +55,11 @@ public class EmployeeController {
 
     @GetMapping
     public ResponseEntity<Page<Employee>> getAllEmployees(
+            @RequestParam(required = false) EmployeeSearchType searchType,
+            @RequestParam(required = false) List<String> values,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        Page<Employee> employees = employeeService.getAllEmployees(page, size);
+        Page<Employee> employees = employeeService.getAllEmployees(searchType, values, page, size);
         return ResponseEntity.ok(employees);
     }
     

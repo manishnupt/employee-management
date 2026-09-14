@@ -9,12 +9,13 @@ import com.hrms.employee.management.dto.EmployeeCountDto;
 import com.hrms.employee.management.dto.EmployeeDto;
 import com.hrms.employee.management.dto.EmployeeReportResponse;
 import com.hrms.employee.management.dto.EmployeeUiResponse;
+import com.hrms.employee.management.utility.EmployeeSearchType;
 
 public interface EmployeeService {
     Employee createEmployee(EmployeeDto employeeDto, String userId);
     Employee updateEmployee(String employeeId, EmployeeDto employeeDto);
     EmployeeUiResponse getEmployeeById(String employeeId);
-    Page<Employee> getAllEmployees(int page, int size);
+    Page<Employee> getAllEmployees(EmployeeSearchType searchType, List<String> values, int page, int size);
     EmployeeCountDto getEmployeeCounts();
 
     String onboardUserInKeycloak(EmployeeDto employeeDto, String currentTenant);

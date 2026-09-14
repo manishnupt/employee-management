@@ -30,6 +30,8 @@ import com.hrms.employee.management.dto.OnboardKeycloakUserRequest;
 import com.hrms.employee.management.repository.EmployeeRepository;
 import com.hrms.employee.management.repository.LeaveTrackerRepository;
 import com.hrms.employee.management.repository.TimesheetRepository;
+import com.hrms.employee.management.specification.EmployeeSpecification;
+import com.hrms.employee.management.utility.EmployeeSearchType;
 
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
@@ -112,8 +114,8 @@ public class EmployeeServiceImpl implements EmployeeService {
     }
 
     @Override
-    public Page<Employee> getAllEmployees(int page, int size) {
-        return employeeRepository.findByDeletedFalse(PageRequest.of(page, size));
+    public Page<Employee> getAllEmployees(EmployeeSearchType searchType, List<String> values, int page, int size) {
+        return employeeRepository.findAll(EmployeeSpecification.search(searchType, values), PageRequest.of(page, size));
     }
 
     @Override
