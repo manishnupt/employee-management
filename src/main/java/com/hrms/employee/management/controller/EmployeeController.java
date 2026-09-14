@@ -105,6 +105,12 @@ public class EmployeeController {
         return ResponseEntity.ok("manager unassigned successfully from employee");
     }
 
+    @DeleteMapping("/{employeeId}")
+    public ResponseEntity<?> deleteEmployee(@PathVariable String employeeId) {
+        employeeService.deleteEmployee(employeeId);
+        return ResponseEntity.ok("employee deleted successfully");
+    }
+
     @GetMapping("/getEmployeeByKcRefId")
     public ResponseEntity<Employee> getEmployeeByKcRefId(@RequestParam String kcRefId) {
         Employee employee = employeeService.findEmployeesByKcRefId(kcRefId);

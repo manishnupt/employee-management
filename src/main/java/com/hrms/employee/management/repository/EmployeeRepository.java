@@ -15,4 +15,6 @@ public interface EmployeeRepository extends JpaRepository<Employee, String> {
 	List<Employee> findByGroupId(Long groupId);
 
 	Optional<Employee> findByKcReferenceId(String kcRefId);
+
+	List<Employee> findByDeletedFalse();
 }

@@ -30,4 +30,6 @@ public interface EmployeeService {
     EmployeeReportResponse getEmployeeReportById(String employeeId,int month,int year);
     void unassignManagerToEmployee(String employeeId);
     void unassignGroupFromEmployee(String header, String employeeId);
+
+    void deleteEmployee(String employeeId);
 }
