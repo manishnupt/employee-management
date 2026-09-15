@@ -4,27 +4,31 @@ import com.hrms.employee.management.dao.Employee;
 import com.hrms.employee.management.dao.EmployeeLeaveBalance;
 import com.hrms.employee.management.dao.LeaveTracker;
 import com.hrms.employee.management.dao.LeaveTransaction;
-import com.hrms.employee.management.dto.BulkLeaveAssignmentDto;
 import com.hrms.employee.management.dto.LeaveBalanceDto;
-import com.hrms.employee.management.dto.LeaveDeductionDto;
+import com.hrms.employee.management.dto.LeaveType;
 import com.hrms.employee.management.repository.EmployeeRepository;
 import com.hrms.employee.management.repository.LeaveTrackerRepository;
 import com.hrms.employee.management.repository.EmployeeLeaveBalanceRepository;
 import com.hrms.employee.management.repository.LeaveTransactionRepository;
 import com.hrms.employee.management.utility.LeaveTransactionType;
+import com.hrms.employee.management.utility.ProrataLeaveCalculator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
-import java.time.LocalDateTime;
 import java.time.Year;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.time.LocalDate;
+
+import lombok.extern.log4j.Log4j2;
+
 
 @Service
+@Log4j2
 @Transactional
 public class LeaveBalanceService {
 
@@ -67,29 +71,50 @@ public class LeaveBalanceService {
     // }
 
     public void initializeLeaveBalanceForNewEmployee(String employeeId) {
+        log.debug("initializeLeaveBalanceForNewEmployee started - employeeId={}", employeeId);
 
         String url = companyServiceBaseUrl + "/leave-types";
         try {
             LeaveType[] leaveTypes = restTemplate.getForObject(url, LeaveType[].class);
+            LocalDate cycleStart = LocalDate.of(2026, 1, 1);
+            LocalDate cycleEnd = LocalDate.of(2026, 12, 31);
+            log.debug("Fetched {} leave type(s) from {} for employeeId={}",
+                    leaveTypes == null ? 0 : leaveTypes.length, url, employeeId);
 
             if (leaveTypes != null) {
                 int currentYear = Year.now().getValue();
                 for (LeaveType leaveType : leaveTypes) {
-                    createLeaveBalance(employeeId, leaveType, currentYear, "NEW_EMPLOYEE_INITIALIZATION");
+                    double leavesCount = ProrataLeaveCalculator.calculateProrataLeaves(LocalDate.now(), leaveType.getTotalDays(), ProrataLeaveCalculator.Frequency.valueOf(leaveType.getDisbursalFrequency().name()), cycleStart, cycleEnd);
+                    log.debug("Prorated leavesCount={} for employeeId={} leaveType={} totalDays={} frequency={} cycleStart={} cycleEnd={}",
+                            leavesCount, employeeId, leaveType.getName(), leaveType.getTotalDays(),
+                            leaveType.getDisbursalFrequency(), cycleStart, cycleEnd);
+                    createLeaveBalance(employeeId, leaveType, currentYear, "NEW_EMPLOYEE_INITIALIZATION", leavesCount);
                 }
             }
         } catch (Exception e) {
+            log.error("Failed to initialize leave balances for new employee={}: {}", employeeId, e.getMessage(), e);
             throw new RuntimeException("Failed to initialize leave balances for new employee: " + e.getMessage());
         }
+        log.debug("initializeLeaveBalanceForNewEmployee completed - employeeId={}", employeeId);
     }
 
     public void initializeLeaveBalanceForNewLeaveType(LeaveType leaveType) {
+        log.debug("initializeLeaveBalanceForNewLeaveType started - leaveType={}", leaveType.getName());
+
         List<Employee> employees = employeeRepository.findAll();
         int currentYear = Year.now().getValue();
+        LocalDate cycleStart = LocalDate.of(2026, 1, 1);
+        LocalDate cycleEnd = LocalDate.of(2026, 12, 31);
+        log.debug("Fetched {} employee(s) for new leaveType={}", employees.size(), leaveType.getName());
 
         for (Employee employee : employees) {
-            createLeaveBalance(employee.getEmployeeId(), leaveType, currentYear, "NEW_LEAVE_TYPE_INITIALIZATION");
+            double leavesCount = ProrataLeaveCalculator.calculateProrataLeaves(LocalDate.now(), leaveType.getTotalDays(), ProrataLeaveCalculator.Frequency.valueOf(leaveType.getDisbursalFrequency().name()), cycleStart, cycleEnd);
+            log.debug("Prorated leavesCount={} for employeeId={} leaveType={} totalDays={} frequency={} cycleStart={} cycleEnd={}",
+                    leavesCount, employee.getEmployeeId(), leaveType.getName(), leaveType.getTotalDays(),
+                    leaveType.getDisbursalFrequency(), cycleStart, cycleEnd);
+            createLeaveBalance(employee.getEmployeeId(), leaveType, currentYear, "NEW_LEAVE_TYPE_INITIALIZATION", leavesCount);
         }
+        log.debug("initializeLeaveBalanceForNewLeaveType completed - leaveType={}", leaveType.getName());
     }
 
     // public void assignLeaveToEmployee(String employeeId, String leaveTypeId, int days, String reason) {
@@ -147,21 +172,26 @@ public class LeaveBalanceService {
     //     leaveBalanceRepository.saveAll(balances);
     // }
 
-    private void createLeaveBalance(String employeeId, LeaveType leaveType, int year, String reason) {
+    private void createLeaveBalance(String employeeId, LeaveType leaveType, int year, String reason, double leavesCount) {
+        log.debug("createLeaveBalance started - employeeId={} leaveType={} year={} reason={} leavesCount={}",
+                employeeId, leaveType.getName(), year, reason, leavesCount);
+
         EmployeeLeaveBalance balance = new EmployeeLeaveBalance();
         balance.setEmployeeId(employeeId);
         // balance.setLeaveTypeId(leaveType.getId());
         balance.setLeaveTypeName(leaveType.getName());
-        // balance.setAllocatedDays(leaveType.getDefaultTotalDays());
-        // balance.setUsedDays(0);
+        balance.setLeaveBalance(leavesCount);
         balance.setCarryForwardDays(0);
         balance.setYear(year);
         balance.setActive(true);
 
-        leaveBalanceRepository.save(balance);
+        balance = leaveBalanceRepository.save(balance);
+        log.debug("Saved EmployeeLeaveBalance id={} employeeId={} leaveType={} leaveBalance={} remainingDays={}",
+                balance.getId(), employeeId, leaveType.getName(), balance.getLeaveBalance(), balance.getRemainingDays());
 
         createLeaveTransaction(employeeId, leaveType.getId(), leaveType.getName(),
-                LeaveTransactionType.INITIALIZATION, leaveType.getDefaultTotalDays(), 0, leaveType.getDefaultTotalDays(), reason);
+                LeaveTransactionType.INITIALIZATION, leaveType.getTotalDays(), 0, leaveType.getTotalDays(), reason);
+        log.debug("createLeaveBalance completed - employeeId={} leaveType={}", employeeId, leaveType.getName());
     }
 
     private void createLeaveTransaction(String employeeId, String leaveTypeId, String leaveTypeName,
@@ -188,54 +218,5 @@ public class LeaveBalanceService {
         dto.setRemainingDays(balance.getRemainingDays());
         dto.setYear(balance.getYear());
         return dto;
-    }
-
-    // Isko theek karna
-    public static class LeaveType {
-        private String id;
-        private String name;
-        private int defaultTotalDays;
-        private boolean carryForward;
-        private int maxCarryForwardDays;
-
-        public String getId() {
-            return id;
-        }
-
-        public void setId(String id) {
-            this.id = id;
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        public void setName(String name) {
-            this.name = name;
-        }
-
-        public int getDefaultTotalDays() {
-            return defaultTotalDays;
-        }
-
-        public void setDefaultTotalDays(int defaultTotalDays) {
-            this.defaultTotalDays = defaultTotalDays;
-        }
-
-        public boolean isCarryForward() {
-            return carryForward;
-        }
-
-        public void setCarryForward(boolean carryForward) {
-            this.carryForward = carryForward;
-        }
-
-        public int getMaxCarryForwardDays() {
-            return maxCarryForwardDays;
-        }
-
-        public void setMaxCarryForwardDays(int maxCarryForwardDays) {
-            this.maxCarryForwardDays = maxCarryForwardDays;
-        }
     }
 }
