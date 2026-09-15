@@ -77,12 +77,15 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     public Employee createEmployee(EmployeeDto employeeDto, String userId) {
+        log.info("creating employee with id: {}", userId);
         Employee employee = employeeMapper.toEntity(employeeDto);
         employee.setEmployeeId(userId);
         Employee savedEmployee = employeeRepository.save(employee);
+        log.info("saved employee with id: {}", savedEmployee.getEmployeeId());
 
         try {
             leaveBalanceService.initializeLeaveBalanceForNewEmployee(userId);
+            log.info("initialized leave balances for employee {}", userId);
         } catch (Exception e) {
             log.error("Failed to initialize leave balances for employee {}: {}", userId, e.getMessage());
         }
