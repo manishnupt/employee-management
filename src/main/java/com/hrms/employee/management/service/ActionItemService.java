@@ -54,7 +54,7 @@ public class ActionItemService {
                     assignedManagerId);
         }
         else {
-            log.error("Unsupported object type for action item creation: {}", object.getClass().getName());
+            log.info("Unsupported object type for action item creation: {}", object.getClass().getName());
             return;
         }
 
