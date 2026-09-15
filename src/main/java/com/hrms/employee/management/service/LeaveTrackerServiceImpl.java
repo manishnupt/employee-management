@@ -1,6 +1,7 @@
 package com.hrms.employee.management.service;
 
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 
@@ -50,7 +51,7 @@ public class LeaveTrackerServiceImpl implements LeaveTrackerService {
             throw new BusinessException("Leave type not found in employee's leave balance");
 
         }
-        int days = leaveTrackerDto.getEndDate().getDayOfYear() - leaveTrackerDto.getStartDate().getDayOfYear() + 1;
+        long days = ChronoUnit.DAYS.between(leaveTrackerDto.getStartDate(), leaveTrackerDto.getEndDate()) + 1;
         if (days > leaveBalance.get().getLeaveBalance()) {
             throw new BusinessException("Insufficient leave balance for the requested leave type");
         }
@@ -60,7 +61,7 @@ public class LeaveTrackerServiceImpl implements LeaveTrackerService {
         leaveTracker.setEndDate(leaveTrackerDto.getEndDate());
         leaveTracker.setLeaveType(leaveTrackerDto.getLeaveType());
         leaveTracker.setStatus("Pending");
-        leaveTracker.setReason(leaveTracker.getReason());
+        leaveTracker.setReason(leaveTrackerDto.getReason());
 
         LeaveTracker savedLeave = leaveTrackerRepository.save(leaveTracker);
 

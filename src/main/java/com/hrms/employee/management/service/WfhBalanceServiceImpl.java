@@ -1,5 +1,7 @@
 package com.hrms.employee.management.service;
 
+import java.time.temporal.ChronoUnit;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -29,7 +31,7 @@ public class WfhBalanceServiceImpl implements WfhBalanceService {
             throw new RuntimeException("WFH Tracker not found");
         }
         
-        int days = wfhTracker.getEndDate().getDayOfYear() - wfhTracker.getStartDate().getDayOfYear() + 1;
+        long days = ChronoUnit.DAYS.between(wfhTracker.getStartDate(), wfhTracker.getEndDate()) + 1;
         if (days <= 0) {
             throw new RuntimeException("Invalid WFH days");
         }
@@ -38,7 +40,7 @@ public class WfhBalanceServiceImpl implements WfhBalanceService {
         if (currentBalance < days) {
             throw new RuntimeException("Insufficient WFH balance");
         }
-        employeeWfhBalance.setWfhBalance(currentBalance - days);
+        employeeWfhBalance.setWfhBalance((int) (currentBalance - days));
 
         employeeWfhRepository.save(employeeWfhBalance);
     }
@@ -53,13 +55,13 @@ public class WfhBalanceServiceImpl implements WfhBalanceService {
             throw new RuntimeException("WFH Tracker not found");
         }
         
-        int days = wfhTracker.getEndDate().getDayOfYear() - wfhTracker.getStartDate().getDayOfYear() + 1;
+        long days = ChronoUnit.DAYS.between(wfhTracker.getStartDate(), wfhTracker.getEndDate()) + 1;
         if (days <= 0) {
             throw new RuntimeException("Invalid WFH days");
         }
 
         int currentBalance = employeeWfhBalance.getWfhBalance();
-        employeeWfhBalance.setWfhBalance(currentBalance + days);
+        employeeWfhBalance.setWfhBalance((int) (currentBalance + days));
 
         employeeWfhRepository.save(employeeWfhBalance);
     }

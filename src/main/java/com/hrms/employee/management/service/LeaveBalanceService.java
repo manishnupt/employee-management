@@ -20,6 +20,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
 import java.time.Year;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -122,7 +123,7 @@ public class LeaveBalanceService {
 
         LeaveTracker leaveTracker=leaveTrackerRepository.findById(leaveId).orElseThrow(() -> new RuntimeException("Leave not found"));
         EmployeeLeaveBalance balance = leaveBalanceRepository.findByEmployeeIdAndLeaveTypeName(employeeId,leaveTracker.getLeaveType()).get();
-        int days = leaveTracker.getEndDate().getDayOfYear() - leaveTracker.getStartDate().getDayOfYear() + 1;
+        long days = ChronoUnit.DAYS.between(leaveTracker.getStartDate(), leaveTracker.getEndDate()) + 1;
         Double updateBalance = balance.getLeaveBalance() - days;
         balance.setLeaveBalance(updateBalance);
         balance.setRemainingDays(updateBalance);
