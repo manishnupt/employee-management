@@ -58,8 +58,10 @@ public class LeaveBalanceService {
 
     public List<LeaveBalanceDto> getEmployeeLeaveBalances(String employeeId) {
         int currentYear = Year.now().getValue();
+        log.info("getEmployeeLeaveBalances started - employeeId={} year={}", employeeId, currentYear);
         List<EmployeeLeaveBalance> balances = leaveBalanceRepository
                 .findByEmployeeIdAndYearAndIsActiveTrue(employeeId, currentYear);
+        log.info("Fetched {} leave balance(s) for employeeId={} year={}", balances.size(), employeeId, currentYear);
 
         return balances.stream()
                 .map(this::mapToDto)
@@ -162,6 +164,7 @@ public class LeaveBalanceService {
     // }
 
     public void deductLeaveFromEmployee(String employeeId,Long leaveId) {
+        log.info("deductLeaveFromEmployee started - employeeId={} leaveId={}", employeeId, leaveId);
 
         LeaveTracker leaveTracker=leaveTrackerRepository.findById(leaveId).orElseThrow(() -> new RuntimeException("Leave not found"));
         EmployeeLeaveBalance balance = leaveBalanceRepository.findByEmployeeIdAndLeaveTypeName(employeeId,leaveTracker.getLeaveType()).get();
@@ -170,6 +173,8 @@ public class LeaveBalanceService {
         balance.setLeaveBalance(updateBalance);
         balance.setRemainingDays(updateBalance);
         leaveBalanceRepository.save(balance);
+        log.info("Deducted {} day(s) for employeeId={} leaveType={} newBalance={}",
+                days, employeeId, balance.getLeaveTypeName(), updateBalance);
 
         LeaveTransaction transaction = new LeaveTransaction();
         transaction.setEmployeeId(employeeId);
@@ -177,6 +182,7 @@ public class LeaveBalanceService {
         transaction.setTransactionType(LeaveTransactionType.DEBIT);
         transaction.setDays(days);
         leaveTransactionRepository.save(transaction);
+        log.info("deductLeaveFromEmployee completed - employeeId={} leaveId={}", employeeId, leaveId);
     }
 
     // public void deactivateLeaveType(String leaveTypeId) {

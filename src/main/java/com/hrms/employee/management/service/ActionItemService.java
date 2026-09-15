@@ -28,6 +28,7 @@ public class ActionItemService {
     private String utilityBaseUrl;
 
     public void createActionItem(String employeeId, Object object, String assignedManagerId) {
+        log.info("Creating action item for employeeId: {}, assignedManagerId: {}", employeeId, assignedManagerId);
         if (assignedManagerId == null || assignedManagerId.isEmpty())
             return;
         String url = utilityBaseUrl + "/action-item";
@@ -37,14 +38,17 @@ public class ActionItemService {
         headers.setContentType(MediaType.APPLICATION_JSON);
         ActionItemExtRequest request=null ;
         if (object instanceof LeaveTracker) {
+            log.info("Creating leave action item");
             request = ActionItemHelper.convertToLeaveRequest((LeaveTracker)object, employeeId,
                     assignedManagerId);
         }
         else if (object instanceof Timesheet){
+            log.info("Creating timesheet action item");
              request = ActionItemHelper.convertToTimesheetequest((Timesheet)object, employeeId,
                     assignedManagerId);
         }
         else if(object instanceof WFHTracker) {
+
             log.info("Creating WFH action item");
             request = ActionItemHelper.convertToWFHRequest((WFHTracker)object, employeeId,
                     assignedManagerId);

@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 
 import com.hrms.employee.management.exceptions.BusinessException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import com.hrms.employee.management.dao.Employee;
@@ -17,6 +18,7 @@ import com.hrms.employee.management.repository.EmployeeLeaveBalanceRepository;
 import com.hrms.employee.management.repository.EmployeeRepository;
 import com.hrms.employee.management.repository.LeaveTrackerRepository;
 
+@Slf4j
 @Service
 public class LeaveTrackerServiceImpl implements LeaveTrackerService {
 
@@ -36,6 +38,7 @@ public class LeaveTrackerServiceImpl implements LeaveTrackerService {
 
     @Override
     public LeaveTrackerResponse applyLeave(String employeeId, LeaveTrackerDto leaveTrackerDto) {
+        log.info("Applying leave for employeeId: {}, leaveType: {}, startDate: {}, endDate: {}", employeeId, leaveTrackerDto.getLeaveType(), leaveTrackerDto.getStartDate(), leaveTrackerDto.getEndDate());
         Employee employee = employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
 
@@ -64,6 +67,7 @@ public class LeaveTrackerServiceImpl implements LeaveTrackerService {
         leaveTracker.setReason(leaveTrackerDto.getReason());
 
         LeaveTracker savedLeave = leaveTrackerRepository.save(leaveTracker);
+        log.info("Leave applied successfully for employeeId: {}, leaveId: {}", employeeId, savedLeave.getId());
 
         actionItemService.createActionItem(employeeId,savedLeave,employee.getAssignedManagerId());
         return new LeaveTrackerResponse("Leave applied successfully", "Success");

@@ -12,11 +12,14 @@ import org.springframework.validation.annotation.Validated;
 import jakarta.validation.Valid;
 import java.util.List;
 
+import lombok.extern.log4j.Log4j2;
+
 
 @RestController
 @RequestMapping("/employee/leave-balance")
 @CrossOrigin(origins = "*")
 @Validated
+@Log4j2
 public class LeaveBalanceController {
 
     @Autowired
@@ -27,6 +30,7 @@ public class LeaveBalanceController {
 
     @GetMapping("/{employeeId}")
     public ResponseEntity<List<LeaveBalanceDto>> getEmployeeLeaveBalances(@PathVariable String employeeId) {
+        log.info("getEmployeeLeaveBalances called - employeeId={}", employeeId);
         return ResponseEntity.ok(leaveBalanceService.getEmployeeLeaveBalances(employeeId));
     }
 
@@ -38,12 +42,14 @@ public class LeaveBalanceController {
 
     @PostMapping("/initialize/{employeeId}")
     public ResponseEntity<String> initializeLeaveBalanceForNewEmployee(@PathVariable String employeeId) {
+        log.info("initializeLeaveBalanceForNewEmployee called - employeeId={}", employeeId);
         leaveBalanceService.initializeLeaveBalanceForNewEmployee(employeeId);
         return ResponseEntity.ok("Leave balances initialized successfully");
     }
 
     @PostMapping("/initialize-for-new-leave-type")
     public ResponseEntity<String> initializeLeaveBalanceForNewLeaveType(@RequestBody LeaveType leaveType) {
+        log.info("initializeLeaveBalanceForNewLeaveType called - leaveType={}", leaveType.getName());
         leaveBalanceService.initializeLeaveBalanceForNewLeaveType(leaveType);
         return ResponseEntity.ok("Leave balances initialized for new leave type");
     }
@@ -65,6 +71,7 @@ public class LeaveBalanceController {
     @PostMapping("/{employeeId}/deduct/{leaveId}")
     public ResponseEntity<String> deductLeaveFromEmployee(@PathVariable String employeeId,
                                                           @PathVariable Long leaveId) {
+        log.info("deductLeaveFromEmployee called - employeeId={} leaveId={}", employeeId, leaveId);
         leaveBalanceService.deductLeaveFromEmployee(employeeId, leaveId);
         return ResponseEntity.ok("Leave deducted successfully");
     }
@@ -77,21 +84,25 @@ public class LeaveBalanceController {
 
     @PostMapping("/disburse-monthly-leave")
     public ResponseEntity<String> disburseLeave() {
+        log.info("disburseLeave (monthly) called");
         leaveDisbursalSchedulerService.disburseMonthlyLeave();
         return ResponseEntity.ok("Leave disbursed successfully");
     }
     @PostMapping("/disburse-yearly-leave")
     public ResponseEntity<String> disburseYearlyLeave() {
+        log.info("disburseYearlyLeave called");
         leaveDisbursalSchedulerService.disburseYearlyLeave();
         return ResponseEntity.ok("Yearly leave disbursed successfully");
     }
     @PostMapping("/disburse-quarterly-leave")
     public ResponseEntity<String> disburseQuarterlyLeave() {
+        log.info("disburseQuarterlyLeave called");
         leaveDisbursalSchedulerService.disburseQuarterlyLeave();
         return ResponseEntity.ok("Quarterly leave disbursed successfully");
     }
     @PostMapping("/disburse-half-yearly-leave")
     public ResponseEntity<String> disburseHalfYearlyLeave() {
+        log.info("disburseHalfYearlyLeave called");
         leaveDisbursalSchedulerService.disburseHalfYearlyLeave();
         return ResponseEntity.ok("Half-yearly leave disbursed successfully");
     }
