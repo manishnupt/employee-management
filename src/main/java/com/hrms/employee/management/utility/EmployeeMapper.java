@@ -79,7 +79,7 @@ public class EmployeeMapper {
         if(employee.getAssignedManagerId()!=null) {
             EmployeeUiResponse.ManagerInfoResponse managerInfo = new EmployeeUiResponse.ManagerInfoResponse();
             managerInfo.setManagerId(manager.getEmployeeId());
-            managerInfo.setName(employee.getName());
+            managerInfo.setName(manager.getName());
             response.setAssignedManager(managerInfo);
         }
         return response;
