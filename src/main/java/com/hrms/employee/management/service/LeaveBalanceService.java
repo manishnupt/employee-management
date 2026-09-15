@@ -71,21 +71,21 @@ public class LeaveBalanceService {
     // }
 
     public void initializeLeaveBalanceForNewEmployee(String employeeId) {
-        log.debug("initializeLeaveBalanceForNewEmployee started - employeeId={}", employeeId);
+        log.info("initializeLeaveBalanceForNewEmployee started - employeeId={}", employeeId);
 
         String url = companyServiceBaseUrl + "/leave-types";
         try {
             LeaveType[] leaveTypes = restTemplate.getForObject(url, LeaveType[].class);
             LocalDate cycleStart = LocalDate.of(2026, 1, 1);
             LocalDate cycleEnd = LocalDate.of(2026, 12, 31);
-            log.debug("Fetched {} leave type(s) from {} for employeeId={}",
+            log.info("Fetched {} leave type(s) from {} for employeeId={}",
                     leaveTypes == null ? 0 : leaveTypes.length, url, employeeId);
 
             if (leaveTypes != null) {
                 int currentYear = Year.now().getValue();
                 for (LeaveType leaveType : leaveTypes) {
                     double leavesCount = ProrataLeaveCalculator.calculateProrataLeaves(LocalDate.now(), leaveType.getTotalDays(), ProrataLeaveCalculator.Frequency.valueOf(leaveType.getDisbursalFrequency().name()), cycleStart, cycleEnd);
-                    log.debug("Prorated leavesCount={} for employeeId={} leaveType={} totalDays={} frequency={} cycleStart={} cycleEnd={}",
+                    log.info("Prorated leavesCount={} for employeeId={} leaveType={} totalDays={} frequency={} cycleStart={} cycleEnd={}",
                             leavesCount, employeeId, leaveType.getName(), leaveType.getTotalDays(),
                             leaveType.getDisbursalFrequency(), cycleStart, cycleEnd);
                     createLeaveBalance(employeeId, leaveType, currentYear, "NEW_EMPLOYEE_INITIALIZATION", leavesCount);
@@ -99,22 +99,22 @@ public class LeaveBalanceService {
     }
 
     public void initializeLeaveBalanceForNewLeaveType(LeaveType leaveType) {
-        log.debug("initializeLeaveBalanceForNewLeaveType started - leaveType={}", leaveType.getName());
+        log.info("initializeLeaveBalanceForNewLeaveType started - leaveType={}", leaveType.getName());
 
         List<Employee> employees = employeeRepository.findAll();
         int currentYear = Year.now().getValue();
         LocalDate cycleStart = LocalDate.of(2026, 1, 1);
         LocalDate cycleEnd = LocalDate.of(2026, 12, 31);
-        log.debug("Fetched {} employee(s) for new leaveType={}", employees.size(), leaveType.getName());
+        log.info("Fetched {} employee(s) for new leaveType={}", employees.size(), leaveType.getName());
 
         for (Employee employee : employees) {
             double leavesCount = ProrataLeaveCalculator.calculateProrataLeaves(LocalDate.now(), leaveType.getTotalDays(), ProrataLeaveCalculator.Frequency.valueOf(leaveType.getDisbursalFrequency().name()), cycleStart, cycleEnd);
-            log.debug("Prorated leavesCount={} for employeeId={} leaveType={} totalDays={} frequency={} cycleStart={} cycleEnd={}",
+            log.info("Prorated leavesCount={} for employeeId={} leaveType={} totalDays={} frequency={} cycleStart={} cycleEnd={}",
                     leavesCount, employee.getEmployeeId(), leaveType.getName(), leaveType.getTotalDays(),
                     leaveType.getDisbursalFrequency(), cycleStart, cycleEnd);
             createLeaveBalance(employee.getEmployeeId(), leaveType, currentYear, "NEW_LEAVE_TYPE_INITIALIZATION", leavesCount);
         }
-        log.debug("initializeLeaveBalanceForNewLeaveType completed - leaveType={}", leaveType.getName());
+        log.info("initializeLeaveBalanceForNewLeaveType completed - leaveType={}", leaveType.getName());
     }
 
     // public void assignLeaveToEmployee(String employeeId, String leaveTypeId, int days, String reason) {
