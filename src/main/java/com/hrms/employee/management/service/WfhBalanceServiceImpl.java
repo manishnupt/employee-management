@@ -10,7 +10,10 @@ import com.hrms.employee.management.dao.WFHTracker;
 import com.hrms.employee.management.repository.EmployeeWfhRepository;
 import com.hrms.employee.management.repository.WFHTrackerRepository;
 
+import lombok.extern.log4j.Log4j2;
+
 @Service
+@Log4j2
 public class WfhBalanceServiceImpl implements WfhBalanceService {
 
     @Autowired
@@ -21,7 +24,7 @@ public class WfhBalanceServiceImpl implements WfhBalanceService {
 
     @Override
     public void deductWfhBalance(Long employeeId, Long wfhTrackerId) {
-
+        log.info("deductWfhBalance called for employeeId={} wfhTrackerId={}", employeeId, wfhTrackerId);
 
         EmployeeWfhBalance employeeWfhBalance = employeeWfhRepository.findById(employeeId)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
@@ -47,6 +50,7 @@ public class WfhBalanceServiceImpl implements WfhBalanceService {
 
     @Override
     public void disburseWfhBalance(Long employeeId, Long wfhTrackerId) {
+        log.info("disburseWfhBalance called for employeeId={} wfhTrackerId={}", employeeId, wfhTrackerId);
         EmployeeWfhBalance employeeWfhBalance = employeeWfhRepository.findById(employeeId)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
 

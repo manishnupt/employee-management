@@ -24,8 +24,11 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import lombok.extern.log4j.Log4j2;
+
 @Service
 @Transactional
+@Log4j2
 public class LeaveBalanceService {
 
 
@@ -48,6 +51,7 @@ public class LeaveBalanceService {
     private String companyServiceBaseUrl;
 
     public List<LeaveBalanceDto> getEmployeeLeaveBalances(String employeeId) {
+        log.info("getEmployeeLeaveBalances called for employeeId={}", employeeId);
         int currentYear = Year.now().getValue();
         List<EmployeeLeaveBalance> balances = leaveBalanceRepository
                 .findByEmployeeIdAndYearAndIsActiveTrue(employeeId, currentYear);
@@ -67,6 +71,7 @@ public class LeaveBalanceService {
     // }
 
     public void initializeLeaveBalanceForNewEmployee(String employeeId) {
+        log.info("initializeLeaveBalanceForNewEmployee called for employeeId={}", employeeId);
 
         String url = companyServiceBaseUrl + "/leave-types";
         try {
@@ -84,6 +89,7 @@ public class LeaveBalanceService {
     }
 
     public void initializeLeaveBalanceForNewLeaveType(LeaveType leaveType) {
+        log.info("initializeLeaveBalanceForNewLeaveType called for leaveType={}", leaveType.getName());
         List<Employee> employees = employeeRepository.findAll();
         int currentYear = Year.now().getValue();
 
@@ -120,6 +126,7 @@ public class LeaveBalanceService {
     // }
 
     public void deductLeaveFromEmployee(String employeeId,Long leaveId) {
+        log.info("deductLeaveFromEmployee called for employeeId={} leaveId={}", employeeId, leaveId);
 
         LeaveTracker leaveTracker=leaveTrackerRepository.findById(leaveId).orElseThrow(() -> new RuntimeException("Leave not found"));
         EmployeeLeaveBalance balance = leaveBalanceRepository.findByEmployeeIdAndLeaveTypeName(employeeId,leaveTracker.getLeaveType()).get();

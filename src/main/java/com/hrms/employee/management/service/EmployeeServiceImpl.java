@@ -77,6 +77,7 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     public Employee createEmployee(EmployeeDto employeeDto, String userId) {
+        log.info("createEmployee called for userId={}", userId);
         Employee employee = employeeMapper.toEntity(employeeDto);
         employee.setEmployeeId(userId);
         Employee savedEmployee = employeeRepository.save(employee);
@@ -92,6 +93,7 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     public Employee updateEmployee(String employeeId, EmployeeDto employeeDto) {
+        log.info("updateEmployee called for employeeId={}", employeeId);
         Employee employee = employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
         employeeMapper.updateEntity(employee, employeeDto);
@@ -100,6 +102,7 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     public EmployeeUiResponse getEmployeeById(String employeeId) {
+        log.info("getEmployeeById called for employeeId={}", employeeId);
         Employee employee = employeeRepository.findById(employeeId)
                 .filter(emp -> !emp.isDeleted())
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
@@ -115,12 +118,14 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     public Page<Employee> getAllEmployees(EmployeeSearchType searchType, List<String> values, int page, int size) {
+        log.info("getAllEmployees called with searchType={} values={} page={} size={}", searchType, values, page, size);
         return employeeRepository.findAll(EmployeeSpecification.search(searchType, values), PageRequest.of(page, size));
     }
 
     @Override
     @Transactional
     public void deleteEmployee(String employeeId) {
+        log.info("deleteEmployee called for employeeId={}", employeeId);
         Employee employee = employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
         if (employee.isDeleted()) {
@@ -133,6 +138,7 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     public EmployeeCountDto getEmployeeCounts() {
+        log.info("getEmployeeCounts called");
         long totalEmployees = employeeRepository.count();
         long activeEmployees = employeeRepository.countByJobStatus("Active");
         return new EmployeeCountDto(totalEmployees, activeEmployees);
@@ -140,6 +146,7 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     public EmployeeReportResponse getEmployeeReportById(String employeeId, int month, int year) {
+        log.info("getEmployeeReportById called for employeeId={} month={} year={}", employeeId, month, year);
 
         Employee employee = employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
@@ -262,16 +269,19 @@ public class EmployeeServiceImpl implements EmployeeService {
     }
 
     public List<Employee> findUnassignedEmployees() {
+        log.info("findUnassignedEmployees called");
         return employeeRepository.findByGroupIdIsNull();
     }
 
     public List<Employee> findEmployeesByGroup(Long groupId) {
+        log.info("findEmployeesByGroup called for groupId={}", groupId);
         return employeeRepository.findByGroupId(groupId);
     }
 
     @Override
     @Transactional
     public void assignGroupToEmployee(String token,String employeeId, Long groupId) {
+        log.info("assignGroupToEmployee called for employeeId={} groupId={}", employeeId, groupId);
         Employee emp= employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
         if(emp.getGroupId()!=null){
@@ -289,6 +299,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Override
     @Transactional
     public void unassignGroupFromEmployee(String token, String employeeId) {
+        log.info("unassignGroupFromEmployee called for employeeId={}", employeeId);
         Employee emp= employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
         if(emp.getGroupId()==null){
@@ -369,6 +380,7 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     public void assignManagerToEmployee(String employeeId, String managerEmpId) {
+        log.info("assignManagerToEmployee called for employeeId={} managerEmpId={}", employeeId, managerEmpId);
         Employee emp= employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
         if(emp.getAssignedManagerId()!=null){
@@ -381,6 +393,7 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     public void unassignManagerToEmployee(String employeeId) {
+        log.info("unassignManagerToEmployee called for employeeId={}", employeeId);
         Employee emp= employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
         if(emp.getAssignedManagerId()==null ){
@@ -392,6 +405,7 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     public Employee findEmployeesByKcRefId(String kcRefId) {
+        log.info("findEmployeesByKcRefId called for kcRefId={}", kcRefId);
         return employeeRepository.findById(kcRefId)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
     }

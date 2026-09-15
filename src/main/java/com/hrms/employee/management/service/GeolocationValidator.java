@@ -35,6 +35,7 @@ public class GeolocationValidator implements IpLocationValidator {
 
     @Override
     public boolean isInOfficeLocation(String ipAddress) throws DeviceLocationException {
+        log.info("isInOfficeLocation called for ipAddress={}", ipAddress);
         try {
             // Fetch geolocation for the IP address
             GeolocationInfo geoInfo = fetchGeolocation(ipAddress);

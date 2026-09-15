@@ -17,11 +17,13 @@ import com.hrms.employee.management.service.EmployeeLocationService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 
 @RestController
 @RequestMapping("/api/employee-location")
 @RequiredArgsConstructor
 @CrossOrigin(origins ="*")
+@Log4j2
 public class EmployeeLocationController {
 
     private final EmployeeLocationService employeeLocationService;
@@ -30,6 +32,7 @@ public class EmployeeLocationController {
     public ResponseEntity<String> checkInEmployee(
         @Valid @RequestBody EmployeeLocationRequest request
     ) {
+        log.info("checkInEmployee called for employeeId={}", request.getEmployeeId());
         try {
             // Validate and check employee location
             boolean isInOfficeLocation = employeeLocationService.validateEmployeeLocation(
@@ -63,9 +66,10 @@ public class EmployeeLocationController {
 
     @GetMapping("/daily-log/{employeeId}")
     public ResponseEntity<LocationLogResponse> getDailyEmployeeLocationLog(
-        @PathVariable String employeeId, 
+        @PathVariable String employeeId,
         @RequestParam(required = false) LocalDateTime specificDate
     ) {
+        log.info("getDailyEmployeeLocationLog called for employeeId={} specificDate={}", employeeId, specificDate);
         try {
             // If no date specified, use current date
             LocalDateTime dateToCheck = specificDate != null 

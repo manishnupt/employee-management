@@ -20,12 +20,14 @@ import com.hrms.employee.management.service.WFHService;
 import org.springframework.web.bind.annotation.RequestParam;
 import com.hrms.employee.management.dto.WFHTrackerResponse;
 
+import lombok.extern.log4j.Log4j2;
 
 @RestController
 @RequestMapping("/employees/{employeeId}/wfh")
 @CrossOrigin(origins ="*")
+@Log4j2
 public class WFHTrackerController {
-    
+
     private final WFHService wfhService;
 
     public WFHTrackerController(WFHService wfhService) {
@@ -34,22 +36,26 @@ public class WFHTrackerController {
 
     @PostMapping
     public ResponseEntity<WFHTracker> applyWFH(@PathVariable String employeeId, @RequestBody WFHTrackerRequest wfmTrackerDto) {
+        log.info("applyWFH called for employeeId={}", employeeId);
         WFHTracker wfhTracker = wfhService.applyWFH(employeeId, wfmTrackerDto);
         return ResponseEntity.ok(wfhTracker);
     }
     @GetMapping("/{id}")
     public ResponseEntity<WFHTracker> getWFHDetailsById(@PathVariable String employeeId, @PathVariable Long id) {
+        log.info("getWFHDetailsById called for employeeId={} id={}", employeeId, id);
         WFHTracker wfhTracker = wfhService.getWFHDetailsById(employeeId, id);
         return ResponseEntity.ok(wfhTracker);
     }
 
     @GetMapping
     public ResponseEntity<List<WFHTracker>> getWFHHistory(@PathVariable String employeeId) {
+        log.info("getWFHHistory called for employeeId={}", employeeId);
         List<WFHTracker> wfhTrackers = wfhService.getWFHHistory(employeeId);
         return ResponseEntity.ok(wfhTrackers);
     }
     @GetMapping("/date")
     public ResponseEntity<WFHTracker> getWFHByDate(@PathVariable String employeeId, @RequestParam LocalDate date) {
+        log.info("getWFHByDate called for employeeId={} date={}", employeeId, date);
         WFHTracker wfhTracker = wfhService.getWFHByDate(employeeId,date);
         return ResponseEntity.ok(wfhTracker);
     }
@@ -58,6 +64,7 @@ public class WFHTrackerController {
     public ResponseEntity<List<WFHTrackerResponse>> getTimesheetHistory(@PathVariable String employeeId,
                                                                   @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
                                                                   @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate){
+        log.info("getWfhReportHistory called for employeeId={} startDate={} endDate={}", employeeId, startDate, endDate);
         List<WFHTrackerResponse> wfhResponse = wfhService.getWfhReportByEmployeeId(employeeId,startDate,endDate);
         return ResponseEntity.ok(wfhResponse);
     }

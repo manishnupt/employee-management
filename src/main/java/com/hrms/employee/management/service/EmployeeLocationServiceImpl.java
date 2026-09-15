@@ -14,9 +14,11 @@ import com.hrms.employee.management.repository.LocationLogRepository;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 
 @Service
 @RequiredArgsConstructor
+@Log4j2
 public class EmployeeLocationServiceImpl implements EmployeeLocationService {
     private final EmployeeRepository employeeRepository;
     private final LocationLogRepository locationLogRepository;
@@ -25,9 +27,10 @@ public class EmployeeLocationServiceImpl implements EmployeeLocationService {
     @Override
     @Transactional
     public boolean validateEmployeeLocation(
-        String employeeId, 
+        String employeeId,
         String deviceIpAddress
     ) throws EmployeeNotFoundException, DeviceLocationException {
+        log.info("validateEmployeeLocation called for employeeId={}", employeeId);
         // Check if employee exists
         Employee employee = employeeRepository.findById(employeeId)
             .orElseThrow(() -> new EmployeeNotFoundException(
@@ -47,9 +50,10 @@ public class EmployeeLocationServiceImpl implements EmployeeLocationService {
     @Override
     @Transactional
     public LocationLog logEmployeeCheckIn(
-        String employeeId, 
+        String employeeId,
         String deviceIpAddress
     ) throws EmployeeNotFoundException {
+        log.info("logEmployeeCheckIn called for employeeId={}", employeeId);
         Employee employee = employeeRepository.findById(employeeId)
             .orElseThrow(() -> new EmployeeNotFoundException(
                 "Employee with ID " + employeeId + " not found"
@@ -67,9 +71,10 @@ public class EmployeeLocationServiceImpl implements EmployeeLocationService {
 
     @Override
     public List<LocationLog> getEmployeeDailyLocationLogs(
-        String employeeId, 
+        String employeeId,
         LocalDateTime date
     ) throws EmployeeNotFoundException {
+        log.info("getEmployeeDailyLocationLogs called for employeeId={} date={}", employeeId, date);
         // Validate employee exists
         Employee employee = employeeRepository.findById(employeeId)
             .orElseThrow(() -> new EmployeeNotFoundException(

@@ -15,7 +15,10 @@ import com.hrms.employee.management.dto.TimesheetDto;
 import com.hrms.employee.management.repository.EmployeeRepository;
 import com.hrms.employee.management.repository.TimesheetRepository;
 
+import lombok.extern.log4j.Log4j2;
+
 @Service
+@Log4j2
 public class TimesheetServiceImpl implements TimesheetService {
 
     @Autowired
@@ -29,6 +32,7 @@ public class TimesheetServiceImpl implements TimesheetService {
 
     @Override
     public TimesheetDto logWork(String employeeId, TimesheetDto timesheetDto) {
+        log.info("logWork called for employeeId={} workDate={}", employeeId, timesheetDto.getWorkDate());
         // Fetch the employee
         Employee employee = employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
@@ -54,12 +58,14 @@ public class TimesheetServiceImpl implements TimesheetService {
 
     @Override
     public List<TimesheetDto> getTimesheetByEmployeeId(String employeeId) {
+        log.info("getTimesheetByEmployeeId called for employeeId={}", employeeId);
         List<Timesheet> timesheets = timesheetRepository.findByEmployee_EmployeeId(employeeId);
         return timesheets.stream().map(this::convertToDto).collect(Collectors.toList());
     }
 
      @Override
     public TimesheetDto getTimesheetById(Long id) {
+        log.info("getTimesheetById called for id={}", id);
         Timesheet timesheet = timesheetRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Timesheet not found"));
         return convertToDto(timesheet);
@@ -79,6 +85,7 @@ public class TimesheetServiceImpl implements TimesheetService {
 
     @Override
     public TimesheetDto clock(String employeeId, TimesheetDto timesheetDto) {
+        log.info("clock called for employeeId={} workDate={}", employeeId, timesheetDto.getWorkDate());
 
         Employee employee = employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
@@ -118,6 +125,7 @@ public class TimesheetServiceImpl implements TimesheetService {
 
     @Override
     public TimesheetDto getTimesheetByEmployeeIdAndDate(String employeeId, LocalDate date) {
+        log.info("getTimesheetByEmployeeIdAndDate called for employeeId={} date={}", employeeId, date);
         Optional<Timesheet> byEmployeeIdAndWorkDaate = timesheetRepository.findByEmployeeIdAndWorkDaate(employeeId, date);
         if(byEmployeeIdAndWorkDaate.isPresent())
             return convertToDto(byEmployeeIdAndWorkDaate.get());
@@ -128,6 +136,7 @@ public class TimesheetServiceImpl implements TimesheetService {
 
     @Override
     public List<TimesheetDto> getTimesheetReportByEmployeeId(String employeeId, LocalDate startDate, LocalDate endDate) {
+        log.info("getTimesheetReportByEmployeeId called for employeeId={} startDate={} endDate={}", employeeId, startDate, endDate);
         List<Timesheet> timesheets = timesheetRepository.findByEmployee_EmployeeIdAndWorkDateBetween(employeeId, startDate, endDate);
         return timesheets.stream().map(this::convertToDto).collect(Collectors.toList());
     }

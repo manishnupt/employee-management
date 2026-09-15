@@ -16,9 +16,12 @@ import com.hrms.employee.management.dto.EmployeeDto;
 import com.hrms.employee.management.dto.EmployeeReportResponse;
 import com.hrms.employee.management.service.EmployeeService;
 
+import lombok.extern.log4j.Log4j2;
+
 @RestController
 @RequestMapping("/employee")
 @CrossOrigin(origins ="*")
+@Log4j2
 public class EmployeeController {
 	private final EmployeeService employeeService;
 
@@ -28,6 +31,7 @@ public class EmployeeController {
 
     @PostMapping
     public ResponseEntity<Employee> createEmployee(@RequestBody EmployeeDto employeeDto) {
+        log.info("createEmployee called for employeeEmail={}", employeeDto.getEmail());
         String userId=employeeService.onboardUserInKeycloak(employeeDto, TenantContext.getCurrentTenant());
        // employeeDto.setKcReferenceId(userId);
         Employee createdEmployee = employeeService.createEmployee(employeeDto,userId);
@@ -37,18 +41,21 @@ public class EmployeeController {
 
     @PutMapping("/{employeeId}")
     public ResponseEntity<Employee> updateEmployee(@PathVariable String employeeId, @RequestBody EmployeeDto employeeDto) {
+        log.info("updateEmployee called for employeeId={}", employeeId);
         Employee updatedEmployee = employeeService.updateEmployee(employeeId, employeeDto);
         return ResponseEntity.ok(updatedEmployee);
     }
 
     @GetMapping("/{employeeId}")
     public ResponseEntity<EmployeeUiResponse> getEmployeeById(@PathVariable String employeeId) {
+        log.info("getEmployeeById called for employeeId={}", employeeId);
         EmployeeUiResponse employee = employeeService.getEmployeeById(employeeId);
         return ResponseEntity.ok(employee);
     }
 
     @GetMapping("/report/{employeeId}")
     public ResponseEntity<EmployeeReportResponse> getEmployeeReportById(@PathVariable String employeeId,@RequestParam int month,@RequestParam int year) {
+        log.info("getEmployeeReportById called for employeeId={} month={} year={}", employeeId, month, year);
         EmployeeReportResponse employee = employeeService.getEmployeeReportById(employeeId,month,year);
         return ResponseEntity.ok(employee);
     }
@@ -59,24 +66,28 @@ public class EmployeeController {
             @RequestParam(required = false) List<String> values,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
+        log.info("getAllEmployees called with searchType={} values={} page={} size={}", searchType, values, page, size);
         Page<Employee> employees = employeeService.getAllEmployees(searchType, values, page, size);
         return ResponseEntity.ok(employees);
     }
-    
+
     @GetMapping("/counts")
     public ResponseEntity<EmployeeCountDto> getEmployeeCounts() {
+        log.info("getEmployeeCounts called");
         EmployeeCountDto employeeCounts = employeeService.getEmployeeCounts();
         return ResponseEntity.ok(employeeCounts);
     }
 
     @GetMapping("/unassigned")
     public ResponseEntity<List<Employee>> getUnassignedEmployees() {
+        log.info("getUnassignedEmployees called");
         List<Employee> unassignedEmployees = employeeService.findUnassignedEmployees();
         return ResponseEntity.ok(unassignedEmployees);
     }
 
     @GetMapping("/by-group/{groupId}")
     public ResponseEntity<List<Employee>> getEmployeesByGroup(@PathVariable Long groupId) {
+        log.info("getEmployeesByGroup called for groupId={}", groupId);
         List<Employee> employees = employeeService.findEmployeesByGroup(groupId);
         return ResponseEntity.ok(employees);
     }
@@ -85,6 +96,7 @@ public class EmployeeController {
             HttpServletRequest request,
             @PathVariable String employeeId,
             @PathVariable Long groupId) {
+        log.info("assignGroupToEmployee called for employeeId={} groupId={}", employeeId, groupId);
         employeeService.assignGroupToEmployee(request.getHeader("authorization"),employeeId, groupId);
         return ResponseEntity.ok("group assigned successfully to employee");
     }
@@ -92,6 +104,7 @@ public class EmployeeController {
     public ResponseEntity<?> unassignGroupFromEmployee(
             HttpServletRequest request,
             @PathVariable String employeeId) {
+        log.info("unassignGroupFromEmployee called for employeeId={}", employeeId);
         employeeService.unassignGroupFromEmployee(request.getHeader("authorization"), employeeId);
         return ResponseEntity.ok("group unassigned successfully from employee");
     }
@@ -100,6 +113,7 @@ public class EmployeeController {
     public ResponseEntity<?> assignManagerToEmployee(
             @PathVariable String employeeId,
             @PathVariable String managerEmpId) {
+        log.info("assignManagerToEmployee called for employeeId={} managerEmpId={}", employeeId, managerEmpId);
         employeeService.assignManagerToEmployee(employeeId, managerEmpId);
         return ResponseEntity.ok("manager assigned successfully to employee");
     }
@@ -107,18 +121,21 @@ public class EmployeeController {
     @DeleteMapping("/{employeeId}/unassign-manager")
     public ResponseEntity<?> unassignManagerToEmployee(
             @PathVariable String employeeId) {
+        log.info("unassignManagerToEmployee called for employeeId={}", employeeId);
         employeeService.unassignManagerToEmployee(employeeId);
         return ResponseEntity.ok("manager unassigned successfully from employee");
     }
 
     @DeleteMapping("/{employeeId}")
     public ResponseEntity<?> deleteEmployee(@PathVariable String employeeId) {
+        log.info("deleteEmployee called for employeeId={}", employeeId);
         employeeService.deleteEmployee(employeeId);
         return ResponseEntity.ok("employee deleted successfully");
     }
 
     @GetMapping("/getEmployeeByKcRefId")
     public ResponseEntity<Employee> getEmployeeByKcRefId(@RequestParam String kcRefId) {
+        log.info("getEmployeeByKcRefId called for kcRefId={}", kcRefId);
         Employee employee = employeeService.findEmployeesByKcRefId(kcRefId);
         return ResponseEntity.ok(employee);
     }

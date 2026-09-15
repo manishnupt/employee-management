@@ -11,7 +11,10 @@ import java.time.LocalDate;
 import java.util.List;
 import com.hrms.employee.management.utility.ReportingFilter;
 
+import lombok.extern.log4j.Log4j2;
+
 @Service
+@Log4j2
 public class ReportService {
     @Autowired
     private TimesheetService timesheetService;
@@ -20,6 +23,7 @@ public class ReportService {
     @Autowired
     private WFHService wfhService;
     public AttendanceReportDto generateReportByEmployeeAndDateRange(String employeeId, LocalDate startDate, LocalDate endDate) {
+        log.info("generateReportByEmployeeAndDateRange called for employeeId={} startDate={} endDate={}", employeeId, startDate, endDate);
         List<TimesheetDto> timesheetReports= timesheetService.getTimesheetReportByEmployeeId(employeeId, startDate, endDate);
         List<LeaveTracker> leaveReports = leaveTrackerService.getLeavesReportByEmployeeId(employeeId, startDate, endDate);
         List<WFHTrackerResponse> wfhReports = wfhService.getWfhReportByEmployeeId(employeeId, startDate, endDate);

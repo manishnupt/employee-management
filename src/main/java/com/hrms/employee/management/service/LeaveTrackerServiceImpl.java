@@ -17,7 +17,10 @@ import com.hrms.employee.management.repository.EmployeeLeaveBalanceRepository;
 import com.hrms.employee.management.repository.EmployeeRepository;
 import com.hrms.employee.management.repository.LeaveTrackerRepository;
 
+import lombok.extern.log4j.Log4j2;
+
 @Service
+@Log4j2
 public class LeaveTrackerServiceImpl implements LeaveTrackerService {
 
 
@@ -36,6 +39,7 @@ public class LeaveTrackerServiceImpl implements LeaveTrackerService {
 
     @Override
     public LeaveTrackerResponse applyLeave(String employeeId, LeaveTrackerDto leaveTrackerDto) {
+        log.info("applyLeave called for employeeId={} leaveType={}", employeeId, leaveTrackerDto.getLeaveType());
         Employee employee = employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
 
@@ -71,17 +75,20 @@ public class LeaveTrackerServiceImpl implements LeaveTrackerService {
     }
     @Override
     public LeaveTracker getLeaveById(Long id) {
+        log.info("getLeaveById called for id={}", id);
         return leaveTrackerRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Leave not found"));
     }
 
     @Override
     public List<LeaveTracker> getLeavesReportByEmployeeId(String employeeId, LocalDate startDate, LocalDate endDate) {
+        log.info("getLeavesReportByEmployeeId called for employeeId={} startDate={} endDate={}", employeeId, startDate, endDate);
         return leaveTrackerRepository.findByEmployee_EmployeeIdAndStartDateGreaterThanEqualAndEndDateLessThanEqual(employeeId, startDate, endDate);
     }
 
     @Override
     public List<LeaveTracker> getLeaveHistory(String employeeId) {
+        log.info("getLeaveHistory called for employeeId={}", employeeId);
         return leaveTrackerRepository.findByEmployee_EmployeeId(employeeId);
     }
 }

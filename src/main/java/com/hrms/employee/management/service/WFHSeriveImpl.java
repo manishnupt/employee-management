@@ -29,6 +29,7 @@ public class WFHSeriveImpl implements WFHService {
     }
 
     public WFHTracker applyWFH(String employeeId, WFHTrackerRequest workFromHomeRequest) {
+        log.info("applyWFH called for employeeId={}", employeeId);
         Employee employee = employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
 
@@ -49,14 +50,16 @@ public class WFHSeriveImpl implements WFHService {
     }
 
     public List<WFHTracker> getWFHHistory(String employeeId) {
+        log.info("getWFHHistory called for employeeId={}", employeeId);
 
         List<WFHTracker> wfhTrackers = wfhRepository.findAllByEmployee_EmployeeId(employeeId);
         return wfhTrackers;
     }
 
     public WFHTracker getWFHDetailsById(String employeeId, Long id) {
+        log.info("getWFHDetailsById called for employeeId={} id={}", employeeId, id);
         WFHTracker wfhTracker = wfhRepository.findByIdAndEmployee_EmployeeId(id,employeeId);
-        if (wfhTracker == null) { 
+        if (wfhTracker == null) {
             throw new RuntimeException("WFH Tracker not found for the given ID and employee");
         }
 
@@ -64,12 +67,14 @@ public class WFHSeriveImpl implements WFHService {
     }
 
     public WFHTracker getWFHByDate(String employeeId, LocalDate date) {
+        log.info("getWFHByDate called for employeeId={} date={}", employeeId, date);
         WFHTracker wfhTrackers = wfhRepository.findByEmployeeIdAndDate(employeeId,date);
         return wfhTrackers;
     }
 
     @Override
     public List<WFHTrackerResponse> getWfhReportByEmployeeId(String employeeId, LocalDate startDate, LocalDate endDate) {
+        log.info("getWfhReportByEmployeeId called for employeeId={} startDate={} endDate={}", employeeId, startDate, endDate);
         List<WFHTracker> wfhTracker= wfhRepository.findByEmployee_EmployeeIdAndStartDateGreaterThanEqualAndEndDateLessThanEqual(employeeId, startDate, endDate);
         return wfhTracker.stream().map(wfh -> new WFHTrackerResponse(
                 wfh.getId(),

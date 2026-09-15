@@ -49,25 +49,30 @@ public class WFHDisbursalSchedulerService {
 
     @Scheduled(cron = "0 0 0 1 * ?")
     public void disburseMonthlyWFH() {
+        log.info("disburseMonthlyWFH triggered. tenant={}", TenantContext.getCurrentTenant());
         disburseWFHBySchedule("monthly", 12);
     }
 
     @Scheduled(cron = "0 0 0 1 1 ?")
     public void disburseYearlyWFH() {
+        log.info("disburseYearlyWFH triggered. tenant={}", TenantContext.getCurrentTenant());
         disburseWFHBySchedule("yearly", 1);
     }
 
     @Scheduled(cron = "0 0 0 1 1,4,7,10 ?")
     public void disburseQuarterlyWFH() {
+        log.info("disburseQuarterlyWFH triggered. tenant={}", TenantContext.getCurrentTenant());
         disburseWFHBySchedule("quarterly", 4);
     }
 
     @Scheduled(cron = "0 0 0 1 1,7 ?")
     public void disburseHalfYearlyWFH() {
+        log.info("disburseHalfYearlyWFH triggered. tenant={}", TenantContext.getCurrentTenant());
         disburseWFHBySchedule("half_yearly", 2);
     }
 
     private void disburseWFHBySchedule(String scheduleType, int divisor) {
+        log.info("disburseWFHBySchedule called with scheduleType={} divisor={}", scheduleType, divisor);
         HttpHeaders headers = new HttpHeaders();
         headers.set("X-Tenant-Id", TenantContext.getCurrentTenant());
         HttpEntity<String> entity = new HttpEntity<>(headers);
