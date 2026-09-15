@@ -12,8 +12,13 @@ import com.hrms.employee.management.repository.EmployeeLeaveBalanceRepository;
 import com.hrms.employee.management.repository.LeaveTransactionRepository;
 import com.hrms.employee.management.utility.LeaveTransactionType;
 import com.hrms.employee.management.utility.ProrataLeaveCalculator;
+import com.hrms.employee.management.utility.TenantContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
@@ -75,7 +80,19 @@ public class LeaveBalanceService {
 
         String url = companyServiceBaseUrl + "/leave-types";
         try {
-            LeaveType[] leaveTypes = restTemplate.getForObject(url, LeaveType[].class);
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("X-Tenant-Id", TenantContext.getCurrentTenant());
+
+            HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+            ResponseEntity<LeaveType[]> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    entity,
+                    LeaveType[].class
+            );
+
+            LeaveType[] leaveTypes = response.getBody();
             LocalDate cycleStart = LocalDate.of(2026, 1, 1);
             LocalDate cycleEnd = LocalDate.of(2026, 12, 31);
             log.info("Fetched {} leave type(s) from {} for employeeId={}",
