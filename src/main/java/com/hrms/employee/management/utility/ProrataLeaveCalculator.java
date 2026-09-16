@@ -82,7 +82,7 @@ public class ProrataLeaveCalculator {
             periodStart = periodEnd.plusDays(1);
         }
 
-        return Math.round(totalLeaves * 100.0) / 100.0;
+        return Math.round(totalLeaves * 4.0) / 4.0;
     }
 
     // Demo / test

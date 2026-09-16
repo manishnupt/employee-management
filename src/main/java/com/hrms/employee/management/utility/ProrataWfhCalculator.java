@@ -82,6 +82,6 @@ public class ProrataWfhCalculator {
             periodStart = periodEnd.plusDays(1);
         }
 
-        return Math.round(totalWfh * 100.0) / 100.0;
+        return Math.round(totalWfh * 4.0) / 4.0;
     }
 }
