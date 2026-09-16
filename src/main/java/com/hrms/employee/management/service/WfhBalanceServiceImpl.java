@@ -14,6 +14,9 @@ import com.hrms.employee.management.repository.EmployeeWfhBalanceRepository;
 import com.hrms.employee.management.repository.EmployeeWfhRepository;
 import com.hrms.employee.management.repository.WFHTrackerRepository;
 
+import lombok.extern.log4j.Log4j2;
+
+@Log4j2
 @Service
 public class WfhBalanceServiceImpl implements WfhBalanceService {
 
@@ -28,7 +31,7 @@ public class WfhBalanceServiceImpl implements WfhBalanceService {
 
     @Override
     public void deductWfhBalance(Long employeeId, Long wfhTrackerId) {
-
+        log.info("Deducting WFH balance for employeeId: {}, wfhTrackerId: {}", employeeId, wfhTrackerId);
 
         EmployeeWfhBalance employeeWfhBalance = employeeWfhRepository.findById(employeeId)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
@@ -37,7 +40,7 @@ public class WfhBalanceServiceImpl implements WfhBalanceService {
         if (wfhTracker == null) {
             throw new RuntimeException("WFH Tracker not found");
         }
-        
+
         long days = ChronoUnit.DAYS.between(wfhTracker.getStartDate(), wfhTracker.getEndDate()) + 1;
         if (days <= 0) {
             throw new RuntimeException("Invalid WFH days");
@@ -50,10 +53,13 @@ public class WfhBalanceServiceImpl implements WfhBalanceService {
         employeeWfhBalance.setWfhBalance((int) (currentBalance - days));
 
         employeeWfhRepository.save(employeeWfhBalance);
+        log.info("WFH balance deducted successfully for employeeId: {}. New balance: {}", employeeId, employeeWfhBalance.getWfhBalance());
     }
 
     @Override
     public void disburseWfhBalance(Long employeeId, Long wfhTrackerId) {
+        log.info("Disbursing WFH balance for employeeId: {}, wfhTrackerId: {}", employeeId, wfhTrackerId);
+
         EmployeeWfhBalance employeeWfhBalance = employeeWfhRepository.findById(employeeId)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
 
@@ -61,7 +67,7 @@ public class WfhBalanceServiceImpl implements WfhBalanceService {
         if (wfhTracker == null) {
             throw new RuntimeException("WFH Tracker not found");
         }
-        
+
         long days = ChronoUnit.DAYS.between(wfhTracker.getStartDate(), wfhTracker.getEndDate()) + 1;
         if (days <= 0) {
             throw new RuntimeException("Invalid WFH days");
@@ -71,11 +77,14 @@ public class WfhBalanceServiceImpl implements WfhBalanceService {
         employeeWfhBalance.setWfhBalance((int) (currentBalance + days));
 
         employeeWfhRepository.save(employeeWfhBalance);
+        log.info("WFH balance disbursed successfully for employeeId: {}. New balance: {}", employeeId, employeeWfhBalance.getWfhBalance());
     }
 
     @Override
     public List<WfhBalanceDto> getEmployeeWfhBalances(String employeeId) {
+        log.info("Fetching WFH balances for employeeId: {}", employeeId);
         List<EmployeeWfhBalance> balances = employeeWfhBalanceRepository.findByEmployeeId(employeeId);
+        log.info("Found {} WFH balance record(s) for employeeId: {}", balances.size(), employeeId);
 
         return balances.stream()
                 .map(this::mapToDto)
