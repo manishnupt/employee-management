@@ -57,6 +57,9 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Autowired
     private LeaveBalanceService leaveBalanceService;
 
+    @Autowired
+    private WfhBalanceService wfhBalanceService;
+
     private final EmployeeRepository employeeRepository;
     private final TimesheetRepository timesheetRepository;
     private final LeaveTrackerRepository leaveTrackerRepository;
@@ -88,6 +91,13 @@ public class EmployeeServiceImpl implements EmployeeService {
             log.info("initialized leave balances for employee {}", userId);
         } catch (Exception e) {
             log.error("Failed to initialize leave balances for employee {}: {}", userId, e.getMessage());
+        }
+
+        try {
+            wfhBalanceService.initializeWfhBalanceForNewEmployee(userId);
+            log.info("initialized wfh balances for employee {}", userId);
+        } catch (Exception e) {
+            log.error("Failed to initialize wfh balances for employee {}: {}", userId, e.getMessage());
         }
 
         return savedEmployee;

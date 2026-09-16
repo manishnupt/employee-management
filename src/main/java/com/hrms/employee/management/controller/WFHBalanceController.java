@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.hrms.employee.management.dto.WfhBalanceDto;
+import com.hrms.employee.management.dto.WfhType;
 import com.hrms.employee.management.service.WfhBalanceService;
 import org.springframework.web.bind.annotation.RequestBody;
 
@@ -31,6 +32,20 @@ public class WFHBalanceController {
     public ResponseEntity<List<WfhBalanceDto>> getEmployeeWfhBalances(@PathVariable String employeeId) {
         log.info("Received request to fetch WFH balances for employeeId: {}", employeeId);
         return ResponseEntity.ok(wfhBalanceService.getEmployeeWfhBalances(employeeId));
+    }
+
+    @PostMapping("/initialize/{employeeId}")
+    public ResponseEntity<String> initializeWfhBalanceForNewEmployee(@PathVariable String employeeId) {
+        log.info("initializeWfhBalanceForNewEmployee called - employeeId={}", employeeId);
+        wfhBalanceService.initializeWfhBalanceForNewEmployee(employeeId);
+        return ResponseEntity.ok("Wfh balances initialized successfully");
+    }
+
+    @PostMapping("/initialize-for-new-wfh-type")
+    public ResponseEntity<String> initializeWfhBalanceForNewWfhType(@RequestBody WfhType wfhType) {
+        log.info("initializeWfhBalanceForNewWfhType called - wfhType={}", wfhType.getName());
+        wfhBalanceService.initializeWfhBalanceForNewWfhType(wfhType);
+        return ResponseEntity.ok("Wfh balances initialized for new wfh type");
     }
 
     @PostMapping("/{employeeId}/deduct/{wfhTrackerId}")
