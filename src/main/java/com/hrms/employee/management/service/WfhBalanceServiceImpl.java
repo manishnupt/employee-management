@@ -1,12 +1,16 @@
 package com.hrms.employee.management.service;
 
 import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.hrms.employee.management.dao.EmployeeWfhBalance;
 import com.hrms.employee.management.dao.WFHTracker;
+import com.hrms.employee.management.dto.WfhBalanceDto;
+import com.hrms.employee.management.repository.EmployeeWfhBalanceRepository;
 import com.hrms.employee.management.repository.EmployeeWfhRepository;
 import com.hrms.employee.management.repository.WFHTrackerRepository;
 
@@ -15,6 +19,9 @@ public class WfhBalanceServiceImpl implements WfhBalanceService {
 
     @Autowired
     private EmployeeWfhRepository employeeWfhRepository;
+
+    @Autowired
+    private EmployeeWfhBalanceRepository employeeWfhBalanceRepository;
 
     @Autowired
     private WFHTrackerRepository wfhTrackerRepository;
@@ -66,8 +73,21 @@ public class WfhBalanceServiceImpl implements WfhBalanceService {
         employeeWfhRepository.save(employeeWfhBalance);
     }
 
-    
-    
+    @Override
+    public List<WfhBalanceDto> getEmployeeWfhBalances(String employeeId) {
+        List<EmployeeWfhBalance> balances = employeeWfhBalanceRepository.findByEmployeeId(employeeId);
+
+        return balances.stream()
+                .map(this::mapToDto)
+                .collect(Collectors.toList());
+    }
+
+    private WfhBalanceDto mapToDto(EmployeeWfhBalance balance) {
+        WfhBalanceDto dto = new WfhBalanceDto();
+        dto.setWfhTypeName(balance.getWfhTypeName());
+        dto.setWfhBalance(balance.getWfhBalance());
+        return dto;
+    }
 
 
 }
