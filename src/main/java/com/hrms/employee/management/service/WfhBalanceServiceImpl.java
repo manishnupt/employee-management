@@ -187,6 +187,9 @@ public class WfhBalanceServiceImpl implements WfhBalanceService {
         balance.setEmployeeId(employeeId);
         balance.setWfhTypeName(wfhType.getName());
         balance.setWfhBalance((int) Math.round(wfhCount));
+        balance.setCarryForwardDays(0);
+        balance.setYear(Year.now().getValue());
+        balance.setActive(true);
 
         balance = employeeWfhBalanceRepository.save(balance);
         log.debug("Saved EmployeeWfhBalance id={} employeeId={} wfhType={} wfhBalance={}",
@@ -210,6 +213,9 @@ public class WfhBalanceServiceImpl implements WfhBalanceService {
         WfhBalanceDto dto = new WfhBalanceDto();
         dto.setWfhTypeName(balance.getWfhTypeName());
         dto.setWfhBalance(balance.getWfhBalance());
+        dto.setCarryForwardDays(balance.getCarryForwardDays());
+        dto.setRemainingDays((Double)balance.getRemainingDays());
+
         return dto;
     }
 
