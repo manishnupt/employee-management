@@ -60,4 +60,10 @@ public class TimesheetController {
         return ResponseEntity.ok(timesheetHistory);
     }
 
+    @PutMapping("/approve/{id}")
+    public ResponseEntity<TimesheetDto> approveTimesheet(@PathVariable String employeeId, @PathVariable Long id) {
+        TimesheetDto approvedTimesheet = timesheetService.approveTimesheet(employeeId, id);
+        return ResponseEntity.ok(approvedTimesheet);
+    }
+
 }

@@ -2,6 +2,7 @@ package com.hrms.employee.management.utility;
 
 import com.hrms.employee.management.dto.EmployeeUiResponse;
 import com.hrms.employee.management.dto.GenerateTokenRequest;
+import com.hrms.employee.management.dto.RoleGroupExtResponse;
 import org.springframework.stereotype.Component;
 
 import com.hrms.employee.management.dao.Employee;
@@ -59,7 +60,7 @@ public class EmployeeMapper {
         employee.setJobDescription(dto.getJobDescription());
     }
 
-    public EmployeeUiResponse toUiResponse(Employee employee, Employee manager) {
+    public EmployeeUiResponse toUiResponse(Employee employee, Employee manager, RoleGroupExtResponse groupById) {
         EmployeeUiResponse response = new EmployeeUiResponse();
         response.setName(employee.getName());
         response.setUsername(employee.getUsername());
@@ -81,6 +82,12 @@ public class EmployeeMapper {
             managerInfo.setManagerId(manager.getEmployeeId());
             managerInfo.setName(manager.getName());
             response.setAssignedManager(managerInfo);
+        }
+        if(groupById!=null) {
+            EmployeeUiResponse.RoleGroupExtResponse groupInfo = new EmployeeUiResponse.RoleGroupExtResponse();
+            groupInfo.setId(groupById.getId());
+            groupInfo.setName(groupById.getName());
+            response.setAssignedGroup(groupInfo);
         }
         return response;
     }

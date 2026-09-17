@@ -47,7 +47,9 @@ public class TimesheetServiceImpl implements TimesheetService {
         // Save the entity
         Timesheet savedTimesheet = timesheetRepository.save(timesheet);
 
-        actionItemService.createActionItem(employeeId, savedTimesheet, employee.getAssignedManagerId());
+        if(timesheet.getClockOut() != null) {
+            actionItemService.createActionItem(employeeId, savedTimesheet, employee.getAssignedManagerId());
+        }
         // Convert and return DTO
         return convertToDto(savedTimesheet);
     }
@@ -92,6 +94,7 @@ public class TimesheetServiceImpl implements TimesheetService {
             timesheet.setEmployee(employee);
             timesheet.setWorkDate(timesheetDto.getWorkDate());
             timesheet.setClockIn(timesheetDto.getClockIn());
+            timesheet.setStatus("CLOCK_OUT_PENDING");
         }
         else{
             if (timesheet.getClockIn() == null) {
@@ -103,8 +106,7 @@ public class TimesheetServiceImpl implements TimesheetService {
             timesheet.setClockOut(timesheetDto.getClockOut());
             Duration duration = Duration.between(timesheet.getClockIn(), timesheetDto.getClockOut());
             timesheet.setTotalHours(duration.toHours() + (duration.toMinutesPart() / 60.0));
-
-            
+            timesheet.setStatus("PENDING");
             
         }
 
@@ -130,5 +132,21 @@ public class TimesheetServiceImpl implements TimesheetService {
     public List<TimesheetDto> getTimesheetReportByEmployeeId(String employeeId, LocalDate startDate, LocalDate endDate) {
         List<Timesheet> timesheets = timesheetRepository.findByEmployee_EmployeeIdAndWorkDateBetween(employeeId, startDate, endDate);
         return timesheets.stream().map(this::convertToDto).collect(Collectors.toList());
+    }
+
+    @Override
+    public TimesheetDto approveTimesheet(String employeeId, Long id) {
+        Timesheet timesheet = timesheetRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Timesheet not found"));
+
+        if (!timesheet.getEmployee().getEmployeeId().equals(employeeId)) {
+            throw new RuntimeException("Timesheet does not belong to the specified employee");
+        }
+
+        timesheet.setStatus("APPROVED");
+        Timesheet savedTimesheet = timesheetRepository.save(timesheet);
+
+        return convertToDto(savedTimesheet);
+
     }
 }

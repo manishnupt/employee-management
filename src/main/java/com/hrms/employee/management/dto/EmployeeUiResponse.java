@@ -5,6 +5,7 @@ import lombok.Data;
 
 @Data
 public class EmployeeUiResponse {
+    private String employeeId;
     private String name;
     private String username;
     private String role;

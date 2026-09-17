@@ -122,8 +122,13 @@ public class EmployeeServiceImpl implements EmployeeService {
                     .orElseThrow(() -> new RuntimeException("Manager not found"));
             log.info("manager name is :{}",manager.getName());
         }
+        RoleGroupExtResponse groupById=null;
+        if(employee.getGroupId()!=null){
+            groupById = getGroupById(employee.getGroupId());
+            log.info("retreived data of group:{}",groupById);
+        }
         return employeeMapper.
-                toUiResponse(employee,manager);
+                toUiResponse(employee,manager,groupById);
     }
 
     @Override

@@ -32,4 +32,5 @@ public class Timesheet {
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "HH:mm")
     private LocalTime clockOut;
     private double totalHours;
+    private String status;
 }

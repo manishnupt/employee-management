@@ -14,5 +14,7 @@ public interface TimesheetService {
     TimesheetDto getTimesheetByEmployeeIdAndDate(String employeeId, LocalDate date);
 
     List<TimesheetDto> getTimesheetReportByEmployeeId(String employeeId, LocalDate startDate, LocalDate endDate);
+
+    TimesheetDto approveTimesheet(String employeeId, Long id);
 }
 
