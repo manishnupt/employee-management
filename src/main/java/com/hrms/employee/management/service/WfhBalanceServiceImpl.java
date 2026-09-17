@@ -6,6 +6,8 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import com.hrms.employee.management.dao.*;
+import com.hrms.employee.management.utility.LeaveTransactionType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -15,10 +17,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
-import com.hrms.employee.management.dao.Employee;
-import com.hrms.employee.management.dao.EmployeeWfhBalance;
-import com.hrms.employee.management.dao.WFHTracker;
-import com.hrms.employee.management.dao.WFHTransaction;
 import com.hrms.employee.management.dto.WfhBalanceDto;
 import com.hrms.employee.management.dto.WfhType;
 import com.hrms.employee.management.repository.EmployeeRepository;
@@ -79,6 +77,18 @@ public class WfhBalanceServiceImpl implements WfhBalanceService {
         employeeWfhBalance.setWfhBalance((int) (currentBalance - days));
 
         employeeWfhRepository.save(employeeWfhBalance);
+
+
+        WFHTransaction transaction = new WFHTransaction();
+        transaction.setEmployeeId(employeeId);
+        transaction.setWfhTypeName(employeeWfhBalance.getWfhTypeName());
+        transaction.setTransactionType("DEBIT");
+        transaction.setDays(days);
+        wfhTransactionRepository.save(transaction);
+
+
+
+
         wfhTracker.setStatus("APPROVED");
         log.info("WFH balance deducted successfully for employeeId: {}. New balance: {}", employeeId, employeeWfhBalance.getWfhBalance());
         wfhTrackerRepository.save(wfhTracker);

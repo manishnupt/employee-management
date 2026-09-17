@@ -183,6 +183,8 @@ public class LeaveBalanceService {
         transaction.setDays(days);
         leaveTransactionRepository.save(transaction);
         log.info("deductLeaveFromEmployee completed - employeeId={} leaveId={}", employeeId, leaveId);
+        leaveTracker.setStatus("APPROVED");
+        leaveTrackerRepository.save(leaveTracker);
     }
 
     // public void deactivateLeaveType(String leaveTypeId) {
