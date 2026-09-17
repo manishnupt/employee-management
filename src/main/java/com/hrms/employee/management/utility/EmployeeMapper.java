@@ -62,6 +62,7 @@ public class EmployeeMapper {
 
     public EmployeeUiResponse toUiResponse(Employee employee, Employee manager, RoleGroupExtResponse groupById) {
         EmployeeUiResponse response = new EmployeeUiResponse();
+        response.setEmployeeId(employee.getEmployeeId());
         response.setName(employee.getName());
         response.setUsername(employee.getUsername());
         response.setRole(employee.getRole());
