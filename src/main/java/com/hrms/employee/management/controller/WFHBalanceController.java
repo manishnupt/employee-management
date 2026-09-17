@@ -49,7 +49,7 @@ public class WFHBalanceController {
     }
 
     @PostMapping("/{employeeId}/deduct/{wfhTrackerId}")
-    public void deductWfhBalance(Long employeeId, Long wfhTrackerId) {
+    public void deductWfhBalance(@PathVariable Long employeeId,@PathVariable Long wfhTrackerId) {
         log.info("Received request to deduct WFH balance for employeeId: {}, wfhTrackerId: {}", employeeId, wfhTrackerId);
         wfhBalanceService.deductWfhBalance(employeeId, wfhTrackerId);
     }
