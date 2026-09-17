@@ -57,11 +57,10 @@ public class WfhBalanceServiceImpl implements WfhBalanceService {
     private String companyServiceBaseUrl;
 
     @Override
-    public void deductWfhBalance(Long employeeId, Long wfhTrackerId) {
+    public void deductWfhBalance(String employeeId, Long wfhTrackerId) {
         log.info("Deducting WFH balance for employeeId: {}, wfhTrackerId: {}", employeeId, wfhTrackerId);
 
-        EmployeeWfhBalance employeeWfhBalance = employeeWfhRepository.findById(employeeId)
-                .orElseThrow(() -> new RuntimeException("Employee not found"));
+        EmployeeWfhBalance employeeWfhBalance = employeeWfhRepository.findByEmployeeId(employeeId);
 
         WFHTracker wfhTracker= wfhTrackerRepository.findById(wfhTrackerId).get();
         if (wfhTracker == null) {

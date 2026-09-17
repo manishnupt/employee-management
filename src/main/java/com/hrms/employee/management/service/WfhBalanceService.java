@@ -7,7 +7,7 @@ import com.hrms.employee.management.dto.WfhType;
 
 public interface WfhBalanceService {
 
-      public void deductWfhBalance(Long employeeId, Long wfhTrackerId);
+      public void deductWfhBalance(String employeeId, Long wfhTrackerId);
 
       public void disburseWfhBalance(Long employeeId, Long wfhTrackerId);
 

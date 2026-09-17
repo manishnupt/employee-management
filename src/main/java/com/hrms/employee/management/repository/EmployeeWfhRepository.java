@@ -5,7 +5,11 @@ import org.springframework.stereotype.Repository;
 
 import com.hrms.employee.management.dao.EmployeeWfhBalance;
 
+import java.util.List;
+
+
 @Repository
 public interface EmployeeWfhRepository extends JpaRepository<EmployeeWfhBalance, Long> {
 
+    EmployeeWfhBalance findByEmployeeId(String employeeId);
 }
