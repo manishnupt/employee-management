@@ -79,7 +79,10 @@ public class WfhBalanceServiceImpl implements WfhBalanceService {
         employeeWfhBalance.setWfhBalance((int) (currentBalance - days));
 
         employeeWfhRepository.save(employeeWfhBalance);
+        wfhTracker.setStatus("APPROVED");
         log.info("WFH balance deducted successfully for employeeId: {}. New balance: {}", employeeId, employeeWfhBalance.getWfhBalance());
+        wfhTrackerRepository.save(wfhTracker);
+        log.info("WFH Tracker status updated to APPROVED for wfhTrackerId: {}", wfhTrackerId);
     }
 
     @Override
