@@ -164,7 +164,7 @@ public class TimesheetServiceImpl implements TimesheetService {
 
     @Override
     public List<Timesheet> getUnassignedTimesheets(String employeeId) {
-        return timesheetRepository.findByEmployeeIdAndLinkedActionItemIdIsNull(employeeId);
+        return timesheetRepository.findByEmployee_EmployeeIdAndLinkedActionItemIdIsNull(employeeId);
     }
 
     @Override
