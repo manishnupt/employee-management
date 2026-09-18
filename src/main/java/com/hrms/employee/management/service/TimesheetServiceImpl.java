@@ -41,22 +41,17 @@ public class TimesheetServiceImpl implements TimesheetService {
         timesheet.setWorkDate(timesheetDto.getWorkDate());
         timesheet.setClockIn(timesheetDto.getClockIn());
         timesheet.setClockOut(timesheetDto.getClockOut());
-
-
-        // Calculate total hours
-        Duration duration = Duration.between(timesheetDto.getClockIn(), timesheetDto.getClockOut());
-        timesheet.setTotalHours(duration.toHours() + (duration.toMinutesPart() / 60.0));
-
+        timesheet.setStatus("PENDING");
         // Save the entity
         Timesheet savedTimesheet = timesheetRepository.save(timesheet);
 
         Long actionItemId = null;
-        if(savedTimesheet.getClockOut() != null) {
+        if(employee.getAssignedManagerId()!=null && !employee.getAssignedManagerId().isEmpty() && savedTimesheet.getClockOut() != null) {
             actionItemId = actionItemService.createActionItem(employeeId, savedTimesheet, employee.getAssignedManagerId());
-        }
-        if(actionItemId != null){
-            savedTimesheet.setLinkedActionItemId(actionItemId);
-            timesheetRepository.save(savedTimesheet);
+            if(actionItemId != null){
+                savedTimesheet.setLinkedActionItemId(actionItemId);
+                timesheetRepository.save(savedTimesheet);
+            }
         }
         // Convert and return DTO
         return convertToDto(savedTimesheet);
