@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import com.hrms.employee.management.utility.TimesheetUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -75,7 +76,7 @@ public class TimesheetServiceImpl implements TimesheetService {
         dto.setWorkDate(timesheet.getWorkDate());
         dto.setClockIn(timesheet.getClockIn());
         dto.setClockOut(timesheet.getClockOut());
-        dto.setTotalHours(timesheet.getTotalHours());
+        dto.setTotalHours(TimesheetUtil.calculateWorkedTimeInWords(timesheet.getWorkDate(),timesheet.getWorkDate(),timesheet.getClockIn(),timesheet.getClockOut()));
         return dto;
     }
 
