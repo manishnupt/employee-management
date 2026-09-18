@@ -38,7 +38,7 @@ public class WFHTracker {
 
     private LocalDate createdDate;
     private LocalDate updatedDate;
-    private long linkedActionItemId;
+    private Long linkedActionItemId;
 
 
     @PrePersist

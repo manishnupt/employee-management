@@ -33,5 +33,5 @@ public class LeaveTracker {
     private String leaveType;
     private String status;
     private String reason;
-    private long linkedActionItemId;
+    private Long linkedActionItemId;
 }
