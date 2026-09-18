@@ -430,12 +430,12 @@ public class EmployeeServiceImpl implements EmployeeService {
                         .filter(wd -> "ON_Leave".equals(wd.getStatus())).count())
                 .totalWfhDays(0)
                 .totalWorkingHours(totalWorkingHours)
-                .totalRegularHours(workDaysDto.stream()
-                        .filter(wd -> wd.getTimesheetDto() != null)
-                        .mapToDouble(wd -> wd.getTimesheetDto().getTotalHours()).sum())
-                .totalOvertimeHours(totalWorkingHours - workDaysDto.stream()
-                        .filter(wd -> wd.getTimesheetDto() != null)
-                        .mapToDouble(wd -> wd.getTimesheetDto().getTotalHours()).sum())
+//                .totalRegularHours(workDaysDto.stream()
+//                        .filter(wd -> wd.getTimesheetDto() != null)
+//                        .mapToDouble(wd -> wd.getTimesheetDto().getTotalHours()).sum())
+//                .totalOvertimeHours(totalWorkingHours - workDaysDto.stream()
+//                        .filter(wd -> wd.getTimesheetDto() != null)
+//                        .mapToDouble(wd -> wd.getTimesheetDto().getTotalHours()).sum())
                 .build();
 
         return summaryDto;
@@ -446,7 +446,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         emptyTimesheet.setWorkDate(currentDate);
         emptyTimesheet.setClockIn(LocalTime.parse("00:00:00"));
         emptyTimesheet.setClockOut(LocalTime.parse("00:00:00"));
-        emptyTimesheet.setTotalHours(0.0);
+        emptyTimesheet.setTotalHours("0 hours");
         emptyTimesheet.setEmployeeId(employeeId);
         return emptyTimesheet;
     }
