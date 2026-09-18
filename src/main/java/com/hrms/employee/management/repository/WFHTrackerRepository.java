@@ -21,4 +21,6 @@ public interface WFHTrackerRepository extends JpaRepository<WFHTracker, Long> {
 
     @Query("SELECT w FROM WFHTracker w WHERE w.employee.employeeId = :employeeId AND w.startDate <= :startDate AND w.endDate >= :endDate")
     List<WFHTracker> findByEmployee_EmployeeIdAndStartDateGreaterThanEqualAndEndDateLessThanEqual(String employeeId, LocalDate startDate, LocalDate endDate);
+
+    List<WFHTracker> findByEmployee_EmployeeIdAndLinkedActionItemIdIsNull(String employeeId);
 }

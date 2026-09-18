@@ -43,7 +43,14 @@ public class WFHSeriveImpl implements WFHService {
         WFHTracker wfhTracker = wfhRepository.save(workFromHome);
 
 
-        actionItemService.createActionItem(employeeId,wfhTracker,employee.getAssignedManagerId());
+        Long actionItemId=actionItemService.createActionItem(employeeId,wfhTracker,employee.getAssignedManagerId());
+        if(actionItemId!=null){
+            log.info("Action item created successfully with ID: {}", actionItemId);
+            wfhTracker.setLinkedActionItemId(actionItemId);
+            wfhRepository.save(wfhTracker);
+        } else {
+            log.warn("Action item creation failed for WFH request of employeeId: {}", employeeId);
+        }
 
         return wfhTracker;
     }
@@ -78,6 +85,20 @@ public class WFHSeriveImpl implements WFHService {
                 wfh.getReason(),
                 wfh.getStatus()
         )).toList();
+    }
+
+    @Override
+    public List<WFHTracker> getUnassignedWfhs(String employeeId) {
+        return wfhRepository.findByEmployee_EmployeeIdAndLinkedActionItemIdIsNull(employeeId);
+    }
+
+    @Override
+    public void saveLinkedActionItemId(Long id, Long actionItem) {
+        wfhRepository.findById(id).ifPresent(wfh -> {
+            wfh.setLinkedActionItemId(actionItem);
+            wfhRepository.save(wfh);
+        });
+
     }
 
 }

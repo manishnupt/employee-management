@@ -15,4 +15,8 @@ public interface WFHService {
     WFHTracker getWFHDetailsById(String employeeId, Long id);
     WFHTracker getWFHByDate(String employeeId, LocalDate date);
     List<WFHTrackerResponse> getWfhReportByEmployeeId(String employeeId, LocalDate startDate, LocalDate endDate);
+
+    List<WFHTracker> getUnassignedWfhs(String employeeId);
+
+    void saveLinkedActionItemId(Long id, Long actionItem);
 }

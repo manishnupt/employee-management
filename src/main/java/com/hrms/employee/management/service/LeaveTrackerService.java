@@ -13,4 +13,8 @@ public interface LeaveTrackerService {
     LeaveTracker getLeaveById(Long id);
 
     List<LeaveTracker> getLeavesReportByEmployeeId(String employeeId, LocalDate startDate, LocalDate endDate);
+
+    List<LeaveTracker> getUnassignedLeaves(String employeeId);
+
+    void saveLinkedActionItemId(Long id, Long actionItem);
 }

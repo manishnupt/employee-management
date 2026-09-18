@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -27,10 +28,10 @@ public class ActionItemService {
     @Value("${utility_base_url}")
     private String utilityBaseUrl;
 
-    public void createActionItem(String employeeId, Object object, String assignedManagerId) {
+    public Long createActionItem(String employeeId, Object object, String assignedManagerId) {
         log.info("Creating action item for employeeId: {}, assignedManagerId: {}", employeeId, assignedManagerId);
         if (assignedManagerId == null || assignedManagerId.isEmpty())
-            return;
+            return null;
         String url = utilityBaseUrl + "/action-item";
         log.info("url to create action item :{}",url);
         HttpHeaders headers = new HttpHeaders();
@@ -55,15 +56,16 @@ public class ActionItemService {
         }
         else {
             log.info("Unsupported object type for action item creation: {}", object.getClass().getName());
-            return;
+            return null;
         }
 
         log.info("ex request :{}", request);
         log.info("url :{}", url);
         HttpEntity<ActionItemExtRequest> requestEntity = new HttpEntity<>(request, headers);
-        restTemplate.postForEntity(
+        ResponseEntity<Long> createdActionItemId = restTemplate.postForEntity(
                 url,
-                requestEntity, Void.class);
+                requestEntity, Long.class);
+        return createdActionItemId.getBody();
 
     }
 

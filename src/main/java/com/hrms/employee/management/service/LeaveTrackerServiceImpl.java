@@ -69,7 +69,14 @@ public class LeaveTrackerServiceImpl implements LeaveTrackerService {
         LeaveTracker savedLeave = leaveTrackerRepository.save(leaveTracker);
         log.info("Leave applied successfully for employeeId: {}, leaveId: {}", employeeId, savedLeave.getId());
 
-        actionItemService.createActionItem(employeeId,savedLeave,employee.getAssignedManagerId());
+        Long actionItemId=actionItemService.createActionItem(employeeId,savedLeave,employee.getAssignedManagerId());
+        if(actionItemId!=null) {
+            log.info("Action item created successfully for leaveId: {}, actionItemId: {}", savedLeave.getId(), actionItemId);
+            savedLeave.setLinkedActionItemId(actionItemId);
+            leaveTrackerRepository.save(leaveTracker);
+        }
+
+
         return new LeaveTrackerResponse("Leave applied successfully", "Success");
 
     }
@@ -82,6 +89,18 @@ public class LeaveTrackerServiceImpl implements LeaveTrackerService {
     @Override
     public List<LeaveTracker> getLeavesReportByEmployeeId(String employeeId, LocalDate startDate, LocalDate endDate) {
         return leaveTrackerRepository.findByEmployee_EmployeeIdAndStartDateGreaterThanEqualAndEndDateLessThanEqual(employeeId, startDate, endDate);
+    }
+
+    @Override
+    public List<LeaveTracker> getUnassignedLeaves(String employeeId) {
+        return leaveTrackerRepository.findByEmployee_EmployeeIdAndLinkedActionItemIdIsNull(employeeId);
+    }
+
+    @Override
+    public void saveLinkedActionItemId(Long id, Long actionItem) {
+        LeaveTracker leaveById = getLeaveById(id);
+        leaveById.setLinkedActionItemId(actionItem);
+        leaveTrackerRepository.save(leaveById);
     }
 
     @Override

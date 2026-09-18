@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 
 import com.hrms.employee.management.utility.TimesheetUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import com.hrms.employee.management.dao.Employee;
@@ -41,6 +42,7 @@ public class TimesheetServiceImpl implements TimesheetService {
         timesheet.setClockIn(timesheetDto.getClockIn());
         timesheet.setClockOut(timesheetDto.getClockOut());
 
+
         // Calculate total hours
         Duration duration = Duration.between(timesheetDto.getClockIn(), timesheetDto.getClockOut());
         timesheet.setTotalHours(duration.toHours() + (duration.toMinutesPart() / 60.0));
@@ -48,8 +50,13 @@ public class TimesheetServiceImpl implements TimesheetService {
         // Save the entity
         Timesheet savedTimesheet = timesheetRepository.save(timesheet);
 
-        if(timesheet.getClockOut() != null) {
-            actionItemService.createActionItem(employeeId, savedTimesheet, employee.getAssignedManagerId());
+        Long actionItemId = null;
+        if(savedTimesheet.getClockOut() != null) {
+            actionItemId = actionItemService.createActionItem(employeeId, savedTimesheet, employee.getAssignedManagerId());
+        }
+        if(actionItemId != null){
+            savedTimesheet.setLinkedActionItemId(actionItemId);
+            timesheetRepository.save(savedTimesheet);
         }
         // Convert and return DTO
         return convertToDto(savedTimesheet);
@@ -110,10 +117,14 @@ public class TimesheetServiceImpl implements TimesheetService {
             timesheet.setStatus("PENDING");
             
         }
-
         Timesheet savedTimesheet = timesheetRepository.save(timesheet);
+        Long actionItemId = null;
         if(savedTimesheet.getClockOut() != null) {
-            actionItemService.createActionItem(employeeId, savedTimesheet, employee.getAssignedManagerId());
+             actionItemId = actionItemService.createActionItem(employeeId, savedTimesheet, employee.getAssignedManagerId());
+        }
+        if(actionItemId != null){
+            savedTimesheet.setLinkedActionItemId(actionItemId);
+            timesheetRepository.save(savedTimesheet);
         }
 
         return convertToDto(savedTimesheet);
@@ -148,6 +159,21 @@ public class TimesheetServiceImpl implements TimesheetService {
         Timesheet savedTimesheet = timesheetRepository.save(timesheet);
 
         return convertToDto(savedTimesheet);
+
+    }
+
+    @Override
+    public List<Timesheet> getUnassignedTimesheets(String employeeId) {
+        return timesheetRepository.findByEmployeeIdAndLinkedActionItemIdIsNull(employeeId);
+    }
+
+    @Override
+    public void saveLinkedActionItemId(Long id, Long actionItem) {
+        Timesheet timesheet = timesheetRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Timesheet not found"));
+
+        timesheet.setLinkedActionItemId(actionItem);
+        timesheetRepository.save(timesheet);
 
     }
 }

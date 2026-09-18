@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import com.hrms.employee.management.dao.WFHTracker;
 import com.hrms.employee.management.dto.*;
 import com.hrms.employee.management.utility.*;
 import jakarta.transaction.Transactional;
@@ -33,9 +34,6 @@ import com.hrms.employee.management.repository.TimesheetRepository;
 import com.hrms.employee.management.specification.EmployeeSpecification;
 import com.hrms.employee.management.utility.EmployeeSearchType;
 
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.HttpServerErrorException;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 @Service
@@ -59,6 +57,18 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Autowired
     private WfhBalanceService wfhBalanceService;
+
+    @Autowired
+    private TimesheetService timesheetService;
+
+    @Autowired
+    private WFHService wfhService;
+
+    @Autowired
+    private LeaveTrackerService leaveTrackerService;
+
+    @Autowired
+    private ActionItemService actionItemService;
 
     private final EmployeeRepository employeeRepository;
     private final TimesheetRepository timesheetRepository;
@@ -392,8 +402,44 @@ public class EmployeeServiceImpl implements EmployeeService {
         if(emp.getAssignedManagerId()!=null){
             throw new RuntimeException("Manager already present");
         }
+        createBacklogActionItemForManager(managerEmpId,employeeId);
+
         emp.setAssignedManagerId(managerEmpId);
         employeeRepository.save(emp);
+    }
+
+    // This method is a placeholder for creating a backlog action item for the manager when they are assigned to an employee.
+    private void createBacklogActionItemForManager(String managerEmpId, String employeeId) {
+        createBacklogActionItemForTimesheets(managerEmpId, employeeId);
+        createBacklogActionItemForLeaves(managerEmpId, employeeId);
+        createBacklogActionItemforWfh(managerEmpId, employeeId);
+
+    }
+
+    private void createBacklogActionItemforWfh(String managerEmpId, String employeeId) {
+        List<WFHTracker> unassignedWfhs=wfhService.getUnassignedWfhs(employeeId);
+        for(WFHTracker wfh:unassignedWfhs){
+            Long actionItem = actionItemService.createActionItem(employeeId, wfh, managerEmpId);
+            wfhService.saveLinkedActionItemId(wfh.getId(), actionItem);
+        }
+
+    }
+
+    private void createBacklogActionItemForLeaves(String managerEmpId, String employeeId) {
+        List<LeaveTracker> unassignedLeaves=leaveTrackerService.getUnassignedLeaves(employeeId);
+        for(LeaveTracker leave:unassignedLeaves){
+            Long actionItem = actionItemService.createActionItem(employeeId,leave,managerEmpId);
+            leaveTrackerService.saveLinkedActionItemId(leave.getId(), actionItem);
+        }
+
+    }
+
+    private void createBacklogActionItemForTimesheets(String managerEmpId, String employeeId) {
+        List<Timesheet> unassignedTimesheets=timesheetService.getUnassignedTimesheets(employeeId);
+        for(Timesheet timesheet:unassignedTimesheets){
+            Long actionItem = actionItemService.createActionItem(employeeId,timesheet,managerEmpId);
+            timesheetService.saveLinkedActionItemId(timesheet.getId(), actionItem);
+        }
     }
 
 

@@ -33,4 +33,5 @@ public class Timesheet {
     private LocalTime clockOut;
     private double totalHours;
     private String status;
+    private long linkedActionItemId;
 }

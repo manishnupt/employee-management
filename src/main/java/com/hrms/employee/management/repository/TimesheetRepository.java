@@ -25,4 +25,6 @@ public interface TimesheetRepository extends JpaRepository<Timesheet, Long> {
 
     @Query("SELECT t FROM Timesheet t WHERE t.employee.employeeId = :employeeId AND t.workDate BETWEEN :startDate AND :endDate")
     List<Timesheet> findByEmployee_EmployeeIdAndWorkDateBetween(String employeeId, LocalDate startDate, LocalDate endDate);
+
+    List<Timesheet> findByEmployeeIdAndLinkedActionItemIdIsNull(String employeeId);
 }

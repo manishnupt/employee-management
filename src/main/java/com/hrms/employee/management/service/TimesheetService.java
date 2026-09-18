@@ -3,6 +3,7 @@ package com.hrms.employee.management.service;
 import java.time.LocalDate;
 import java.util.List;
 
+import com.hrms.employee.management.dao.Timesheet;
 import com.hrms.employee.management.dto.TimesheetDto;
 
 public interface TimesheetService {
@@ -16,5 +17,9 @@ public interface TimesheetService {
     List<TimesheetDto> getTimesheetReportByEmployeeId(String employeeId, LocalDate startDate, LocalDate endDate);
 
     TimesheetDto approveTimesheet(String employeeId, Long id);
+
+    List<Timesheet> getUnassignedTimesheets(String employeeId);
+
+    void saveLinkedActionItemId(Long id, Long actionItem);
 }
 
