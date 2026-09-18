@@ -15,7 +15,7 @@ public class TimesheetMapper {
         timesheet.setWorkDate(timesheetDto.getWorkDate());
         timesheet.setClockIn(timesheetDto.getClockIn());
         timesheet.setClockOut(timesheetDto.getClockOut());
-        timesheet.setTotalHours(timesheetDto.getTotalHours());
+        //timesheet.setTotalHours(timesheetDto.getTotalHours());
         return timesheet;
     }
 

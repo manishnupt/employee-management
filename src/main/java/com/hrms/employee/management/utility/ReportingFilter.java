@@ -53,7 +53,7 @@ public class ReportingFilter {
                 rec.setDate(date.toString());
                 rec.setCheckIn(ts.getClockIn() != null ? ts.getClockIn().toString() : null);
                 rec.setCheckOut(ts.getClockOut() != null ? ts.getClockOut().toString() : null);
-                rec.setTotalHours(String.format("%02d:%02d", (int) ts.getTotalHours(), (int)((ts.getTotalHours() % 1) * 60)));
+                //rec.setTotalHours(String.format("%02d:%02d", (int) ts.getTotalHours(), (int)((ts.getTotalHours() % 1) * 60)));
                 recordsByDate.put(date, rec);
             }
 
