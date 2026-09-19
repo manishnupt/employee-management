@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import com.hrms.employee.management.utility.TimesheetUtil;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,7 @@ import com.hrms.employee.management.repository.EmployeeRepository;
 import com.hrms.employee.management.repository.TimesheetRepository;
 
 @Service
+@Log4j2
 public class TimesheetServiceImpl implements TimesheetService {
 
     @Autowired
@@ -72,6 +74,7 @@ public class TimesheetServiceImpl implements TimesheetService {
 
 
     private TimesheetDto convertToDto(Timesheet timesheet) {
+        log.info("Converting Timesheet entity to DTO for timesheet ID: {}", timesheet.getId());
         TimesheetDto dto = new TimesheetDto();
         dto.setTimesheetId(timesheet.getId());
         dto.setEmployeeId(timesheet.getEmployee().getEmployeeId());
