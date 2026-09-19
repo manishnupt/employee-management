@@ -37,7 +37,7 @@ public class WFHSeriveImpl implements WFHService {
                 .endDate(workFromHomeRequest.getEndDate())
                 .reason(workFromHomeRequest.getReason())
                 .status("PENDING")
-                .deductedWfhBalance(workFromHomeRequest.isDeductWfhBalance())
+                .deductWfhBalance(workFromHomeRequest.isDeductWfhBalance())
                 .build();
         workFromHome.setEmployee(employee);
         log.info("Creating action item for WFH request");

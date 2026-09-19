@@ -67,7 +67,7 @@ public class WfhBalanceServiceImpl implements WfhBalanceService {
         if (!wfhTracker.getStatus().equals("PENDING")) {
             throw new RuntimeException("WFH Tracker is not in PENDING status");
         }
-        if (!wfhTracker.isDeductedWfhBalance()){
+        if (!wfhTracker.isDeductWfhBalance()){
             wfhTracker.setStatus("APPROVED");
             log.info("WFH balance not deducted successfully for employeeId: {}. New balance: {}", employeeId, employeeWfhBalance.getWfhBalance());
             wfhTrackerRepository.save(wfhTracker);
