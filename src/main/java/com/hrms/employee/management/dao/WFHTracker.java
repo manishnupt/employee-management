@@ -37,7 +37,7 @@ public class WFHTracker {
     private LocalDate createdDate;
     private LocalDate updatedDate;
     private Long linkedActionItemId;
-    private boolean deductedWfhBalance;
+    private boolean deductWfhBalance;
 
 
     @PrePersist

@@ -96,8 +96,6 @@ public class WfhBalanceServiceImpl implements WfhBalanceService {
         wfhTransactionRepository.save(transaction);
 
 
-
-
         wfhTracker.setStatus("APPROVED");
         log.info("WFH balance deducted successfully for employeeId: {}. New balance: {}", employeeId, employeeWfhBalance.getWfhBalance());
         wfhTrackerRepository.save(wfhTracker);
@@ -224,7 +222,6 @@ public class WfhBalanceServiceImpl implements WfhBalanceService {
         transaction.setWfhTypeName(wfhTypeName);
         transaction.setTransactionType(transactionType);
         transaction.setDays(days);
-
         wfhTransactionRepository.save(transaction);
     }
 
