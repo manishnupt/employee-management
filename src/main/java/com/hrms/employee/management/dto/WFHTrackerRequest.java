@@ -8,8 +8,8 @@ import lombok.Data;
 public class WFHTrackerRequest {
 
     private String employeeId;
-    private String wfhCreditOption;
     private LocalDate startDate;
     private LocalDate endDate;
     private String reason;
+    private boolean deductWfhBalance;
 }

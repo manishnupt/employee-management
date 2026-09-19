@@ -32,13 +32,12 @@ public class WFHTracker {
     private LocalDate startDate;
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
     private LocalDate endDate;
-    private String wfhCreditOption;
     private String status;
     private String reason;
-
     private LocalDate createdDate;
     private LocalDate updatedDate;
     private Long linkedActionItemId;
+    private boolean deductedWfhBalance;
 
 
     @PrePersist

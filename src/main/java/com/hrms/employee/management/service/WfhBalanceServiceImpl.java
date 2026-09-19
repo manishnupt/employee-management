@@ -64,6 +64,15 @@ public class WfhBalanceServiceImpl implements WfhBalanceService {
         if (wfhTracker == null) {
             throw new RuntimeException("WFH Tracker not found");
         }
+        if (!wfhTracker.getStatus().equals("PENDING")) {
+            throw new RuntimeException("WFH Tracker is not in PENDING status");
+        }
+        if (!wfhTracker.isDeductedWfhBalance()){
+            wfhTracker.setStatus("APPROVED");
+            log.info("WFH balance not deducted successfully for employeeId: {}. New balance: {}", employeeId, employeeWfhBalance.getWfhBalance());
+            wfhTrackerRepository.save(wfhTracker);
+            return; // No deduction needed if the flag is false
+        }
 
         long days = ChronoUnit.DAYS.between(wfhTracker.getStartDate(), wfhTracker.getEndDate()) + 1;
         if (days <= 0) {
