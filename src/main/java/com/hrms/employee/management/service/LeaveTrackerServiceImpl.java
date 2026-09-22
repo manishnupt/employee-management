@@ -104,6 +104,19 @@ public class LeaveTrackerServiceImpl implements LeaveTrackerService {
     }
 
     @Override
+    public LeaveTracker updateLeaveStatus(String employeeId, Long id, String status) {
+        LeaveTracker leaveTracker = leaveTrackerRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Leave not found"));
+
+        if (!leaveTracker.getEmployee().getEmployeeId().equals(employeeId)) {
+            throw new RuntimeException("Leave does not belong to the specified employee");
+        }
+
+        leaveTracker.setStatus(status);
+        return leaveTrackerRepository.save(leaveTracker);
+    }
+
+    @Override
     public List<LeaveTracker> getLeaveHistory(String employeeId) {
         return leaveTrackerRepository.findByEmployee_EmployeeId(employeeId);
     }

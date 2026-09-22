@@ -102,4 +102,17 @@ public class WFHSeriveImpl implements WFHService {
 
     }
 
+    @Override
+    public WFHTracker updateWFHStatus(String employeeId, Long id, String status) {
+        WFHTracker wfhTracker = wfhRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("WFH Tracker not found"));
+
+        if (!wfhTracker.getEmployee().getEmployeeId().equals(employeeId)) {
+            throw new RuntimeException("WFH Tracker does not belong to the specified employee");
+        }
+
+        wfhTracker.setStatus(status);
+        return wfhRepository.save(wfhTracker);
+    }
+
 }

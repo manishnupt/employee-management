@@ -6,18 +6,11 @@ import java.util.List;
 import com.hrms.employee.management.dto.TimesheetDto;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import com.hrms.employee.management.dto.WFHTrackerRequest;
 import com.hrms.employee.management.dao.WFHTracker;
 import com.hrms.employee.management.service.WFHService;
-import org.springframework.web.bind.annotation.RequestParam;
 import com.hrms.employee.management.dto.WFHTrackerResponse;
 
 
@@ -60,5 +53,10 @@ public class WFHTrackerController {
                                                                   @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate){
         List<WFHTrackerResponse> wfhResponse = wfhService.getWfhReportByEmployeeId(employeeId,startDate,endDate);
         return ResponseEntity.ok(wfhResponse);
+    }
+    @PutMapping("/{id}/status")
+    public ResponseEntity<WFHTracker> updateWFHStatus(@PathVariable String employeeId, @PathVariable Long id, @RequestParam String status) {
+        WFHTracker updatedWFH = wfhService.updateWFHStatus(employeeId, id, status);
+        return ResponseEntity.ok(updatedWFH);
     }
 }

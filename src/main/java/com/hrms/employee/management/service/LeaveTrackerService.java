@@ -17,4 +17,6 @@ public interface LeaveTrackerService {
     List<LeaveTracker> getUnassignedLeaves(String employeeId);
 
     void saveLinkedActionItemId(Long id, Long actionItem);
+
+    LeaveTracker updateLeaveStatus(String employeeId, Long id, String status);
 }

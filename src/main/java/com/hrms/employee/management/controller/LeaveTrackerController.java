@@ -48,4 +48,9 @@ public class LeaveTrackerController {
         List<LeaveTracker> leaves = leaveTrackerService.getLeavesReportByEmployeeId(employeeId,startDate,endDate);
         return ResponseEntity.ok(leaves);
     }
+    @PutMapping("/{id}/status")
+    public ResponseEntity<LeaveTracker> updateLeaveStatus(@PathVariable String employeeId, @PathVariable Long id, @RequestParam String status) {
+        LeaveTracker updatedLeave = leaveTrackerService.updateLeaveStatus(employeeId, id, status);
+        return ResponseEntity.ok(updatedLeave);
+    }
 }

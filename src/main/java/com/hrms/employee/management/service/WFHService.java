@@ -19,4 +19,6 @@ public interface WFHService {
     List<WFHTracker> getUnassignedWfhs(String employeeId);
 
     void saveLinkedActionItemId(Long id, Long actionItem);
+
+    WFHTracker updateWFHStatus(String employeeId, Long id, String status);
 }
