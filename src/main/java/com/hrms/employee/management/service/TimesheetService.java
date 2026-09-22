@@ -12,6 +12,8 @@ public interface TimesheetService {
     TimesheetDto getTimesheetById(Long id);
     TimesheetDto clock(String employeeId, TimesheetDto timesheetDto);
 
+    TimesheetDto recordTimesheetEntry(String employeeId, TimesheetDto timesheetDto);
+
     TimesheetDto getTimesheetByEmployeeIdAndDate(String employeeId, LocalDate date);
 
     List<TimesheetDto> getTimesheetReportByEmployeeId(String employeeId, LocalDate startDate, LocalDate endDate);

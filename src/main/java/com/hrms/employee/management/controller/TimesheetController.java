@@ -47,6 +47,18 @@ public class TimesheetController {
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
 
+    /**
+     * Unified entry point: infers clock punch vs. manual entry from which fields are present.
+     * - clockIn + clockOut both present  -> manual entry (overwrite, no state guards)
+     * - only clockIn present             -> clock-in punch
+     * - only clockOut present            -> clock-out punch (state guards apply)
+     */
+    @PutMapping("/entry")
+    public ResponseEntity<TimesheetDto> recordTimesheetEntry(@PathVariable String employeeId, @RequestBody TimesheetDto timesheetDto) {
+        TimesheetDto result = timesheetService.recordTimesheetEntry(employeeId, timesheetDto);
+        return ResponseEntity.status(HttpStatus.CREATED).body(result);
+    }
+
     @GetMapping("/date/{date}")
     public ResponseEntity<TimesheetDto> getTimesheetByDate(@PathVariable String employeeId,@PathVariable LocalDate date) {
         TimesheetDto timesheetEntry = timesheetService.getTimesheetByEmployeeIdAndDate(employeeId,date);

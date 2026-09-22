@@ -33,28 +33,59 @@ public class TimesheetServiceImpl implements TimesheetService {
 
     @Override
     public TimesheetDto logWork(String employeeId, TimesheetDto timesheetDto) {
-        // Fetch the employee
+
+        // Fetch employee
         Employee employee = employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
 
-        // Create Timesheet entry
-        Timesheet timesheet = new Timesheet();
-        timesheet.setEmployee(employee);
-        timesheet.setWorkDate(timesheetDto.getWorkDate());
-        timesheet.setClockIn(timesheetDto.getClockIn());
-        timesheet.setClockOut(timesheetDto.getClockOut());
-        timesheet.setStatus("PENDING");
-        // Save the entity
-        Timesheet savedTimesheet = timesheetRepository.save(timesheet);
+        // Find existing timesheet for this employee and date
+        Timesheet savedTimesheet =
+                timesheetRepository.findByworkDateAndEmployee_EmployeeId(
+                        timesheetDto.getWorkDate(),
+                        employeeId
+                );
 
-        Long actionItemId = null;
-        if(employee.getAssignedManagerId()!=null && !employee.getAssignedManagerId().isEmpty() && savedTimesheet.getClockOut() != null) {
-            actionItemId = actionItemService.createActionItem(employeeId, savedTimesheet, employee.getAssignedManagerId());
-            if(actionItemId != null){
+        // Create or update
+        if (savedTimesheet != null) {
+
+            // Existing record -> update
+            savedTimesheet.setClockIn(timesheetDto.getClockIn());
+            savedTimesheet.setClockOut(timesheetDto.getClockOut());
+            savedTimesheet.setStatus("PENDING");
+
+        } else {
+
+            // New record
+            savedTimesheet = new Timesheet();
+
+            savedTimesheet.setEmployee(employee);
+            savedTimesheet.setWorkDate(timesheetDto.getWorkDate());
+            savedTimesheet.setClockIn(timesheetDto.getClockIn());
+            savedTimesheet.setClockOut(timesheetDto.getClockOut());
+            savedTimesheet.setStatus("PENDING");
+        }
+
+        // Save create/update
+        savedTimesheet = timesheetRepository.save(savedTimesheet);
+
+        // Create action item when employee has manager
+        // and clock-out has been recorded
+        if (employee.getAssignedManagerId() != null
+                && !employee.getAssignedManagerId().isEmpty()
+                && savedTimesheet.getClockOut() != null) {
+
+            Long actionItemId = actionItemService.createActionItem(
+                    employeeId,
+                    savedTimesheet,
+                    employee.getAssignedManagerId()
+            );
+
+            if (actionItemId != null) {
                 savedTimesheet.setLinkedActionItemId(actionItemId);
-                timesheetRepository.save(savedTimesheet);
+                savedTimesheet = timesheetRepository.save(savedTimesheet);
             }
         }
+
         // Convert and return DTO
         return convertToDto(savedTimesheet);
     }
@@ -125,6 +156,78 @@ public class TimesheetServiceImpl implements TimesheetService {
         if(actionItemId != null){
             savedTimesheet.setLinkedActionItemId(actionItemId);
             timesheetRepository.save(savedTimesheet);
+        }
+
+        return convertToDto(savedTimesheet);
+    }
+
+    @Override
+    public TimesheetDto recordTimesheetEntry(String employeeId, TimesheetDto timesheetDto) {
+
+        Employee employee = employeeRepository.findById(employeeId)
+                .orElseThrow(() -> new RuntimeException("Employee not found"));
+
+        Timesheet timesheet = timesheetRepository.findByworkDateAndEmployee_EmployeeId(
+                timesheetDto.getWorkDate(), employeeId);
+
+        boolean hasClockIn = timesheetDto.getClockIn() != null;
+        boolean hasClockOut = timesheetDto.getClockOut() != null;
+
+        if (!hasClockIn && !hasClockOut) {
+            throw new RuntimeException("At least one of clockIn or clockOut must be provided.");
+        }
+
+        if (hasClockIn && hasClockOut) {
+
+            // Manual entry: both times supplied at once, always overwrite, no state guards
+            if (timesheet == null) {
+                timesheet = new Timesheet();
+                timesheet.setEmployee(employee);
+                timesheet.setWorkDate(timesheetDto.getWorkDate());
+            }
+            timesheet.setClockIn(timesheetDto.getClockIn());
+            timesheet.setClockOut(timesheetDto.getClockOut());
+            Duration duration = Duration.between(timesheetDto.getClockIn(), timesheetDto.getClockOut());
+            timesheet.setTotalHours(duration.toHours() + (duration.toMinutesPart() / 60.0));
+            timesheet.setStatus("PENDING");
+
+        } else if (hasClockIn) {
+
+            // Clock-in punch (or a partial edit of clockIn only, leaving clockOut untouched)
+            if (timesheet == null) {
+                timesheet = new Timesheet();
+                timesheet.setEmployee(employee);
+                timesheet.setWorkDate(timesheetDto.getWorkDate());
+                timesheet.setClockIn(timesheetDto.getClockIn());
+                timesheet.setStatus("CLOCK_OUT_PENDING");
+            } else {
+                timesheet.setClockIn(timesheetDto.getClockIn());
+                if (timesheet.getClockOut() == null) {
+                    timesheet.setStatus("CLOCK_OUT_PENDING");
+                }
+            }
+
+        } else {
+
+            // Clock-out punch
+            if (timesheet == null || timesheet.getClockIn() == null) {
+                throw new RuntimeException("No clock-in record found for this date.");
+            }
+            if (timesheet.getClockOut() != null) {
+                throw new RuntimeException("Already clocked out for this date.");
+            }
+            timesheet.setClockOut(timesheetDto.getClockOut());
+            timesheet.setStatus("PENDING");
+        }
+
+        Timesheet savedTimesheet = timesheetRepository.save(timesheet);
+
+        if (savedTimesheet.getClockOut() != null) {
+            Long actionItemId = actionItemService.createActionItem(employeeId, savedTimesheet, employee.getAssignedManagerId());
+            if (actionItemId != null) {
+                savedTimesheet.setLinkedActionItemId(actionItemId);
+                savedTimesheet = timesheetRepository.save(savedTimesheet);
+            }
         }
 
         return convertToDto(savedTimesheet);
