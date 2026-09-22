@@ -77,5 +77,11 @@ public class TimesheetController {
         TimesheetDto approvedTimesheet = timesheetService.approveTimesheet(employeeId, id);
         return ResponseEntity.ok(approvedTimesheet);
     }
+    @PutMapping("/{id}/status")
+    public ResponseEntity<TimesheetDto> updateTimesheetStatus(@PathVariable String employeeId, @PathVariable Long id, @RequestParam String status) {
+        TimesheetDto updatedTimesheet = timesheetService.updateTimesheet(employeeId, id,status);
+        return ResponseEntity.ok(updatedTimesheet);
+    }
+
 
 }

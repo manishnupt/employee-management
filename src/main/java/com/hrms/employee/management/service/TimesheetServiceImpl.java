@@ -279,4 +279,19 @@ public class TimesheetServiceImpl implements TimesheetService {
         timesheetRepository.save(timesheet);
 
     }
+
+    @Override
+    public TimesheetDto updateTimesheet(String employeeId, Long id,String status) {
+        Timesheet timesheet = timesheetRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Timesheet not found"));
+
+        if (!timesheet.getEmployee().getEmployeeId().equals(employeeId)) {
+            throw new RuntimeException("Timesheet does not belong to the specified employee");
+        }
+
+        timesheet.setStatus("PENDING");
+        Timesheet savedTimesheet = timesheetRepository.save(timesheet);
+
+        return convertToDto(savedTimesheet);
+    }
 }

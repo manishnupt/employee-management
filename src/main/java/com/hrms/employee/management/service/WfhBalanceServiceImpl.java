@@ -94,12 +94,6 @@ public class WfhBalanceServiceImpl implements WfhBalanceService {
         transaction.setTransactionType("DEBIT");
         transaction.setDays(days);
         wfhTransactionRepository.save(transaction);
-
-
-        wfhTracker.setStatus("APPROVED");
-        log.info("WFH balance deducted successfully for employeeId: {}. New balance: {}", employeeId, employeeWfhBalance.getWfhBalance());
-        wfhTrackerRepository.save(wfhTracker);
-        log.info("WFH Tracker status updated to APPROVED for wfhTrackerId: {}", wfhTrackerId);
     }
 
     @Override

@@ -23,5 +23,7 @@ public interface TimesheetService {
     List<Timesheet> getUnassignedTimesheets(String employeeId);
 
     void saveLinkedActionItemId(Long id, Long actionItem);
+
+    TimesheetDto updateTimesheet(String employeeId, Long id,String status);
 }
 

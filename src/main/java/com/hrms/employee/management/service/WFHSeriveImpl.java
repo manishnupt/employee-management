@@ -5,6 +5,7 @@ import java.util.List;
 
 import com.hrms.employee.management.dto.WFHTrackerResponse;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.hrms.employee.management.dao.Employee;
@@ -20,6 +21,9 @@ public class WFHSeriveImpl implements WFHService {
     private final WFHTrackerRepository wfhRepository;
     private final EmployeeRepository employeeRepository;
     private ActionItemService actionItemService;
+
+    @Autowired
+    private WfhBalanceService wfhBalanceService;
 
     public WFHSeriveImpl(WFHTrackerRepository wfhRepository,EmployeeRepository employeeRepository,
             ActionItemService actionItemService) {
@@ -109,6 +113,10 @@ public class WFHSeriveImpl implements WFHService {
 
         if (!wfhTracker.getEmployee().getEmployeeId().equals(employeeId)) {
             throw new RuntimeException("WFH Tracker does not belong to the specified employee");
+        }
+        if(status.equalsIgnoreCase("APPROVED"))
+        {
+            wfhBalanceService.deductWfhBalance(employeeId, id);
         }
 
         wfhTracker.setStatus(status);

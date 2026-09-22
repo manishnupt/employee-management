@@ -7,6 +7,7 @@ import java.util.Optional;
 
 import com.hrms.employee.management.exceptions.BusinessException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.hrms.employee.management.dao.Employee;
@@ -27,6 +28,9 @@ public class LeaveTrackerServiceImpl implements LeaveTrackerService {
     private final EmployeeRepository employeeRepository;
     private final ActionItemService actionItemService;
     private final EmployeeLeaveBalanceRepository employeeLeaveBalanceRepository;
+
+    @Autowired
+    private LeaveBalanceService leaveBalanceService;
 
     public LeaveTrackerServiceImpl(LeaveTrackerRepository leaveTrackerRepository, EmployeeRepository employeeRepository,ActionItemService actionItemService
             , EmployeeLeaveBalanceRepository employeeLeaveBalanceRepository) {
@@ -110,6 +114,9 @@ public class LeaveTrackerServiceImpl implements LeaveTrackerService {
 
         if (!leaveTracker.getEmployee().getEmployeeId().equals(employeeId)) {
             throw new RuntimeException("Leave does not belong to the specified employee");
+        }
+        if(!status.equalsIgnoreCase("Approved")) {
+            leaveBalanceService.deductLeaveFromEmployee(employeeId, id);
         }
 
         leaveTracker.setStatus(status);

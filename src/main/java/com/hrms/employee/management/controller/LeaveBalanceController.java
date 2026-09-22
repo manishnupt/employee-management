@@ -68,13 +68,13 @@ public class LeaveBalanceController {
     //     return ResponseEntity.ok("Leave assigned to all employees successfully");
     // }
 
-    @PostMapping("/{employeeId}/deduct/{leaveId}")
-    public ResponseEntity<String> deductLeaveFromEmployee(@PathVariable String employeeId,
-                                                          @PathVariable Long leaveId) {
-        log.info("deductLeaveFromEmployee called - employeeId={} leaveId={}", employeeId, leaveId);
-        leaveBalanceService.deductLeaveFromEmployee(employeeId, leaveId);
-        return ResponseEntity.ok("Leave deducted successfully");
-    }
+//    @PostMapping("/{employeeId}/deduct/{leaveId}")
+//    public ResponseEntity<String> deductLeaveFromEmployee(@PathVariable String employeeId,
+//                                                          @PathVariable Long leaveId) {
+//        log.info("deductLeaveFromEmployee called - employeeId={} leaveId={}", employeeId, leaveId);
+//        leaveBalanceService.deductLeaveFromEmployee(employeeId, leaveId);
+//        return ResponseEntity.ok("Leave deducted successfully");
+//    }
 
     // @PutMapping("/deactivate-leave-type/{leaveTypeId}")
     // public ResponseEntity<String> deactivateLeaveType(@PathVariable String leaveTypeId) {

@@ -48,11 +48,11 @@ public class WFHBalanceController {
         return ResponseEntity.ok("Wfh balances initialized for new wfh type");
     }
 
-    @PostMapping("/{employeeId}/deduct/{wfhTrackerId}")
-    public void deductWfhBalance(@PathVariable String employeeId,@PathVariable Long wfhTrackerId) {
-        log.info("Received request to deduct WFH balance for employeeId: {}, wfhTrackerId: {}", employeeId, wfhTrackerId);
-        wfhBalanceService.deductWfhBalance(employeeId, wfhTrackerId);
-    }
+//    @PostMapping("/{employeeId}/deduct/{wfhTrackerId}")
+//    public void deductWfhBalance(@PathVariable String employeeId,@PathVariable Long wfhTrackerId) {
+//        log.info("Received request to deduct WFH balance for employeeId: {}, wfhTrackerId: {}", employeeId, wfhTrackerId);
+//        wfhBalanceService.deductWfhBalance(employeeId, wfhTrackerId);
+//    }
 
     //disbursal logic
     @PostMapping("/{employeeId}/disburse/{wfhTrackerId}")

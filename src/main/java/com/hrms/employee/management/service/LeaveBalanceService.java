@@ -169,7 +169,7 @@ public class LeaveBalanceService {
         LeaveTracker leaveTracker=leaveTrackerRepository.findById(leaveId).orElseThrow(() -> new RuntimeException("Leave not found"));
         EmployeeLeaveBalance balance = leaveBalanceRepository.findByEmployeeIdAndLeaveTypeName(employeeId,leaveTracker.getLeaveType()).get();
         long days = ChronoUnit.DAYS.between(leaveTracker.getStartDate(), leaveTracker.getEndDate()) + 1;
-        Double updateBalance = balance.getLeaveBalance() - days;
+        double updateBalance = balance.getLeaveBalance() - days;
         balance.setLeaveBalance(updateBalance);
         balance.setRemainingDays(updateBalance);
         leaveBalanceRepository.save(balance);

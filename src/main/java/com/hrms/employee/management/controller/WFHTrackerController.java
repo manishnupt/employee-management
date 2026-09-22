@@ -54,6 +54,7 @@ public class WFHTrackerController {
         List<WFHTrackerResponse> wfhResponse = wfhService.getWfhReportByEmployeeId(employeeId,startDate,endDate);
         return ResponseEntity.ok(wfhResponse);
     }
+
     @PutMapping("/{id}/status")
     public ResponseEntity<WFHTracker> updateWFHStatus(@PathVariable String employeeId, @PathVariable Long id, @RequestParam String status) {
         WFHTracker updatedWFH = wfhService.updateWFHStatus(employeeId, id, status);
