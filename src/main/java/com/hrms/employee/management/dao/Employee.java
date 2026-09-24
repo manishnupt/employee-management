@@ -53,17 +53,14 @@ public class Employee {
     @OneToMany(mappedBy = "employee", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonIgnore
     private List<Timesheet> timesheetHistory;
-	
-	@PrePersist
-    public void generateUUID() {
-        if (this.employeeId == null) {
-            this.employeeId = UUID.randomUUID().toString();
-        }
-    }
+
 	@PrePersist
 	protected void onCreate() {
 		createdAt = LocalDateTime.now();
 		updatedAt = LocalDateTime.now();
+		if (this.employeeId == null) {
+			this.employeeId = UUID.randomUUID().toString();
+		}
 	}
 
 	@PreUpdate
