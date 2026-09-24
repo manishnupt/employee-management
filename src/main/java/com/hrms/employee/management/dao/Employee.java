@@ -1,17 +1,19 @@
 package com.hrms.employee.management.dao;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+
+import jakarta.persistence.*;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedBy;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.PrePersist;
 import lombok.Data;
 
 @Entity
@@ -44,6 +46,12 @@ public class Employee {
 	@Column(name = "deleted", nullable = false)
 	private boolean deleted = false;
 
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private LocalDateTime createdAt;
+
+	@Column(name = "updated_at", nullable = false)
+	private LocalDateTime updatedAt;
+
 	@OneToMany(mappedBy = "employee", cascade = CascadeType.ALL, orphanRemoval = true)
 	@JsonBackReference
     private List<LeaveTracker> leaveHistory;
@@ -58,4 +66,14 @@ public class Employee {
             this.employeeId = UUID.randomUUID().toString();
         }
     }
+	@PrePersist
+	protected void onCreate() {
+		createdAt = LocalDateTime.now();
+		updatedAt = LocalDateTime.now();
+	}
+
+	@PreUpdate
+	protected void onUpdate() {
+		updatedAt = LocalDateTime.now();
+	}
 }

@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import com.hrms.employee.management.dao.Employee;
 import com.hrms.employee.management.dao.Timesheet;
 import com.hrms.employee.management.dto.TimesheetDto;
+import com.hrms.employee.management.exceptions.BusinessException;
 import com.hrms.employee.management.repository.EmployeeRepository;
 import com.hrms.employee.management.repository.TimesheetRepository;
 
@@ -37,6 +38,8 @@ public class TimesheetServiceImpl implements TimesheetService {
         // Fetch employee
         Employee employee = employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
+
+        validateWorkDateNotBeforeOnboarding(employee, timesheetDto.getWorkDate());
 
         // Find existing timesheet for this employee and date
         Timesheet savedTimesheet =
@@ -104,6 +107,29 @@ public class TimesheetServiceImpl implements TimesheetService {
     }
 
 
+    /**
+     * Rejects timesheet entries dated before the employee was onboarded.
+     * The onboarding date is the employee's createdDate; legacy rows without it are not checked.
+     */
+    private void validateWorkDateNotBeforeOnboarding(Employee employee, LocalDate workDate) {
+        if (workDate == null) {
+            throw new BusinessException("Work date is required to fill a timesheet.");
+        }
+        if (employee.getCreatedAt() == null) {
+            return;
+        }
+        LocalDate onboardingDate = employee.getCreatedAt().toLocalDate();
+        if (workDate.isBefore(onboardingDate)) {
+            log.warn("Rejected timesheet for employee {} on {}: onboarded on {}",
+                    employee.getEmployeeId(), workDate, onboardingDate);
+            throw new BusinessException(String.format(
+                    "Cannot fill timesheet for %s. Employee %s was onboarded on %s; "
+                            + "timesheets can only be filled from the onboarding date onwards.",
+                    workDate, employee.getName() != null ? employee.getName() : employee.getEmployeeId(),
+                    onboardingDate));
+        }
+    }
+
     private TimesheetDto convertToDto(Timesheet timesheet) {
         log.info("Converting Timesheet entity to DTO for timesheet ID: {}", timesheet.getId());
         TimesheetDto dto = new TimesheetDto();
@@ -123,6 +149,8 @@ public class TimesheetServiceImpl implements TimesheetService {
 
         Employee employee = employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
+
+        validateWorkDateNotBeforeOnboarding(employee, timesheetDto.getWorkDate());
 
         Timesheet timesheet = timesheetRepository.findByworkDateAndEmployee_EmployeeId(
                 timesheetDto.getWorkDate(), employeeId);
@@ -166,6 +194,8 @@ public class TimesheetServiceImpl implements TimesheetService {
 
         Employee employee = employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
+
+        validateWorkDateNotBeforeOnboarding(employee, timesheetDto.getWorkDate());
 
         Timesheet timesheet = timesheetRepository.findByworkDateAndEmployee_EmployeeId(
                 timesheetDto.getWorkDate(), employeeId);
