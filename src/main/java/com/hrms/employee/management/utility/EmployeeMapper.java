@@ -78,10 +78,8 @@ public class EmployeeMapper {
         response.setJobType(employee.getJobType());
         response.setJobStatus(employee.getJobStatus());
         response.setJobDescription(employee.getJobDescription());
-        response.setCreatedDate(employee.getCreatedDate());
-        response.setCreatedBy(employee.getCreatedBy());
-        response.setModifiedDate(employee.getModifiedDate());
-        response.setModifiedBy(employee.getModifiedBy());
+        response.setCreatedDate(employee.getCreatedAt());
+        response.setModifiedDate(employee.getUpdatedAt());
         if(employee.getAssignedManagerId()!=null) {
             EmployeeUiResponse.ManagerInfoResponse managerInfo = new EmployeeUiResponse.ManagerInfoResponse();
             managerInfo.setManagerId(manager.getEmployeeId());

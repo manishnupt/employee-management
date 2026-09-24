@@ -115,10 +115,10 @@ public class TimesheetServiceImpl implements TimesheetService {
         if (workDate == null) {
             throw new BusinessException("Work date is required to fill a timesheet.");
         }
-        if (employee.getCreatedDate() == null) {
+        if (employee.getCreatedAt() == null) {
             return;
         }
-        LocalDate onboardingDate = employee.getCreatedDate().toLocalDate();
+        LocalDate onboardingDate = employee.getCreatedAt().toLocalDate();
         if (workDate.isBefore(onboardingDate)) {
             log.warn("Rejected timesheet for employee {} on {}: onboarded on {}",
                     employee.getEmployeeId(), workDate, onboardingDate);
