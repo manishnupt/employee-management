@@ -23,10 +23,6 @@ public class EmployeeUiResponse {
     private String jobType;
     private String jobStatus;
     private String jobDescription;
-    private LocalDateTime createdDate;
-    private String createdBy;
-    private LocalDateTime modifiedDate;
-    private String modifiedBy;
 
     private ManagerInfoResponse assignedManager;
     private RoleGroupExtResponse assignedGroup;
