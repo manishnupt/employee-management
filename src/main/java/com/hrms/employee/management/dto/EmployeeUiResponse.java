@@ -1,6 +1,8 @@
 package com.hrms.employee.management.dto;
 
 
+import java.time.LocalDateTime;
+
 import lombok.Data;
 
 @Data
@@ -21,6 +23,10 @@ public class EmployeeUiResponse {
     private String jobType;
     private String jobStatus;
     private String jobDescription;
+    private LocalDateTime createdDate;
+    private String createdBy;
+    private LocalDateTime modifiedDate;
+    private String modifiedBy;
 
     private ManagerInfoResponse assignedManager;
     private RoleGroupExtResponse assignedGroup;
