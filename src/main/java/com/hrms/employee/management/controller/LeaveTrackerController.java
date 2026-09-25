@@ -3,7 +3,9 @@ package com.hrms.employee.management.controller;
 import java.time.LocalDate;
 import java.util.List;
 
+import com.hrms.employee.management.exceptions.BusinessException;
 import com.hrms.employee.management.service.LeaveTrackerService;
+import com.hrms.employee.management.utility.JwtUtil;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -24,7 +26,11 @@ public class LeaveTrackerController {
     }
 
     @PostMapping
-    public ResponseEntity<LeaveTrackerResponse> applyLeave(@PathVariable String employeeId, @RequestBody LeaveTrackerDto leaveTrackerDto) {
+    public ResponseEntity<LeaveTrackerResponse> applyLeave(@PathVariable String employeeId, @RequestBody LeaveTrackerDto leaveTrackerDto , @RequestHeader(value = "Authorization") String authorization) {
+        String userId = JwtUtil.extractUserId(authorization);
+        if (!userId.equals(employeeId)) {
+            throw new BusinessException("Timesheet entries can only be recorded for your own employee id.");
+        }
         LeaveTrackerResponse leave = leaveTrackerService.applyLeave(employeeId, leaveTrackerDto);
         return ResponseEntity.ok(leave);
     }

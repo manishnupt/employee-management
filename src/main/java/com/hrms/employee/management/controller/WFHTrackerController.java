@@ -4,6 +4,8 @@ import java.time.LocalDate;
 import java.util.List;
 
 import com.hrms.employee.management.dto.TimesheetDto;
+import com.hrms.employee.management.exceptions.BusinessException;
+import com.hrms.employee.management.utility.JwtUtil;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -26,7 +28,12 @@ public class WFHTrackerController {
     }
 
     @PostMapping
-    public ResponseEntity<WFHTracker> applyWFH(@PathVariable String employeeId, @RequestBody WFHTrackerRequest wfmTrackerDto) {
+    public ResponseEntity<WFHTracker> applyWFH(@PathVariable String employeeId, @RequestBody WFHTrackerRequest wfmTrackerDto, @RequestHeader(value = "Authorization") String authorization){
+
+        String userId = JwtUtil.extractUserId(authorization);
+        if (!userId.equals(employeeId)) {
+            throw new BusinessException("Timesheet entries can only be recorded for your own employee id.");
+        }
         WFHTracker wfhTracker = wfhService.applyWFH(employeeId, wfmTrackerDto);
         return ResponseEntity.ok(wfhTracker);
     }
