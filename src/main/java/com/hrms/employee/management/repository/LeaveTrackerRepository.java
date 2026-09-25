@@ -16,8 +16,9 @@ public interface LeaveTrackerRepository extends JpaRepository<LeaveTracker, Long
     List<LeaveTracker> findByEmployeeAndMonth(@Param("employeeId") String employeeId, @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate);
 
-    @Query("SELECT l FROM LeaveTracker l WHERE l.employee.employeeId = :employeeId AND l.startDate >= :startDate AND l.endDate <= :endDate")
-    List<LeaveTracker> findByEmployee_EmployeeIdAndStartDateGreaterThanEqualAndEndDateLessThanEqual(String employeeId, LocalDate startDate, LocalDate endDate);
+    /** Leaves that overlap [startDate, endDate], including ones that start before or end after the range. */
+    @Query("SELECT l FROM LeaveTracker l WHERE l.employee.employeeId = :employeeId AND l.startDate <= :endDate AND l.endDate >= :startDate")
+    List<LeaveTracker> findOverlappingRange(String employeeId, LocalDate startDate, LocalDate endDate);
 
     List<LeaveTracker> findByEmployee_EmployeeIdAndLinkedActionItemIdIsNull(String employeeId);
 }

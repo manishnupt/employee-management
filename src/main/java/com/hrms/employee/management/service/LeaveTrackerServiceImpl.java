@@ -92,7 +92,7 @@ public class LeaveTrackerServiceImpl implements LeaveTrackerService {
 
     @Override
     public List<LeaveTracker> getLeavesReportByEmployeeId(String employeeId, LocalDate startDate, LocalDate endDate) {
-        return leaveTrackerRepository.findByEmployee_EmployeeIdAndStartDateGreaterThanEqualAndEndDateLessThanEqual(employeeId, startDate, endDate);
+        return leaveTrackerRepository.findOverlappingRange(employeeId, startDate, endDate);
     }
 
     @Override

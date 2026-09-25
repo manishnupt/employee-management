@@ -82,7 +82,7 @@ public class WFHSeriveImpl implements WFHService {
 
     @Override
     public List<WFHTrackerResponse> getWfhReportByEmployeeId(String employeeId, LocalDate startDate, LocalDate endDate) {
-        List<WFHTracker> wfhTracker= wfhRepository.findByEmployee_EmployeeIdAndStartDateGreaterThanEqualAndEndDateLessThanEqual(employeeId, startDate, endDate);
+        List<WFHTracker> wfhTracker= wfhRepository.findOverlappingRange(employeeId, startDate, endDate);
         return wfhTracker.stream().map(wfh -> new WFHTrackerResponse(
                 wfh.getId(),
                 wfh.getStartDate(),

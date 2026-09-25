@@ -18,5 +18,6 @@ public class TimesheetDto {
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "HH:mm")
     private LocalTime clockOut;
     private String totalHours;
+    private String status;
 }
 

@@ -19,8 +19,9 @@ public interface WFHTrackerRepository extends JpaRepository<WFHTracker, Long> {
     @Query("SELECT w FROM WFHTracker w WHERE w.employee.employeeId = :employeeId AND w.startDate <= :date AND w.endDate >= :date")
     WFHTracker findByEmployeeIdAndDate(String employeeId, LocalDate date);
 
-    @Query("SELECT w FROM WFHTracker w WHERE w.employee.employeeId = :employeeId AND w.startDate <= :startDate AND w.endDate >= :endDate")
-    List<WFHTracker> findByEmployee_EmployeeIdAndStartDateGreaterThanEqualAndEndDateLessThanEqual(String employeeId, LocalDate startDate, LocalDate endDate);
+    /** WFH requests that overlap [startDate, endDate], including ones that start before or end after the range. */
+    @Query("SELECT w FROM WFHTracker w WHERE w.employee.employeeId = :employeeId AND w.startDate <= :endDate AND w.endDate >= :startDate")
+    List<WFHTracker> findOverlappingRange(String employeeId, LocalDate startDate, LocalDate endDate);
 
     List<WFHTracker> findByEmployee_EmployeeIdAndLinkedActionItemIdIsNull(String employeeId);
 }
