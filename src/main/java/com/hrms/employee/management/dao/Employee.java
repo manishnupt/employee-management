@@ -41,16 +41,18 @@ public class Employee {
 	private boolean deleted = false;
 
 	@Column(name = "created_at", nullable = false, updatable = false)
+	@JsonIgnore
 	private LocalDateTime createdAt;
 
 	@Column(name = "updated_at", nullable = false)
+	@JsonIgnore
 	private LocalDateTime updatedAt;
 
-	@OneToMany(mappedBy = "employee", cascade = CascadeType.ALL, orphanRemoval = true)
+	@OneToMany(mappedBy = "employee", cascade = CascadeType.ALL, orphanRemoval = true , fetch = FetchType.LAZY)
 	@JsonBackReference
     private List<LeaveTracker> leaveHistory;
 
-    @OneToMany(mappedBy = "employee", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "employee", cascade = CascadeType.ALL, orphanRemoval = true , fetch = FetchType.LAZY)
     @JsonIgnore
     private List<Timesheet> timesheetHistory;
 
