@@ -1,11 +1,16 @@
 package com.hrms.employee.management.utility;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 
 public final class TimesheetUtil {
+
+    public static final ZoneId IST = ZoneId.of("Asia/Kolkata");
 
     private TimesheetUtil() {
     }
@@ -75,5 +80,18 @@ public final class TimesheetUtil {
     public static String calculateWorkedTimeInWords(LocalDate workStartDate, LocalDate workEndDate,
                                                     LocalTime clockIn, LocalTime clockOut) {
         return formatMinutesInWords(calculateTotalMinutes(workStartDate, workEndDate, clockIn, clockOut));
+    }
+
+    /**
+     * Returns the absolute difference in minutes between a punch time and the current time in the
+     * clock's zone (Asia/Kolkata for {@link #IST}). Seconds are ignored since punches are HH:mm.
+     *
+     * @param punchTime the clock-in or clock-out time sent by the client
+     * @param clock     clock providing the current time and zone
+     * @return minutes between punchTime and now, always &gt;= 0
+     */
+    public static long minutesFromCurrentTime(LocalTime punchTime, Clock clock) {
+        LocalTime now = LocalTime.now(clock).truncatedTo(ChronoUnit.MINUTES);
+        return Math.abs(Duration.between(now, punchTime.truncatedTo(ChronoUnit.MINUTES)).toMinutes());
     }
 }

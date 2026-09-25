@@ -9,7 +9,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import com.hrms.employee.management.dto.TimesheetDto;
+import com.hrms.employee.management.exceptions.BusinessException;
 import com.hrms.employee.management.service.TimesheetService;
+import com.hrms.employee.management.utility.JwtUtil;
 
 @RestController
 @RequestMapping("/employees/{employeeId}/timesheets")
@@ -54,7 +56,13 @@ public class TimesheetController {
      * - only clockOut present            -> clock-out punch (state guards apply)
      */
     @PutMapping("/entry")
-    public ResponseEntity<TimesheetDto> recordTimesheetEntry(@PathVariable String employeeId, @RequestBody TimesheetDto timesheetDto) {
+    public ResponseEntity<TimesheetDto> recordTimesheetEntry(@PathVariable String employeeId,
+                                                             @RequestHeader(value = "Authorization", required = false) String authorization,
+                                                             @RequestBody TimesheetDto timesheetDto) {
+        String userId = JwtUtil.extractUserId(authorization);
+        if (!userId.equals(employeeId)) {
+            throw new BusinessException("Timesheet entries can only be recorded for your own employee id.");
+        }
         TimesheetDto result = timesheetService.recordTimesheetEntry(employeeId, timesheetDto);
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }

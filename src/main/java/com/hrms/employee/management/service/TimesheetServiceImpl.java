@@ -1,7 +1,9 @@
 package com.hrms.employee.management.service;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -22,6 +24,10 @@ import com.hrms.employee.management.repository.TimesheetRepository;
 @Service
 @Log4j2
 public class TimesheetServiceImpl implements TimesheetService {
+
+    private static final long MAX_PUNCH_DRIFT_MINUTES = 20;
+
+    private final Clock istClock = Clock.system(TimesheetUtil.IST);
 
     @Autowired
     private TimesheetRepository timesheetRepository;
@@ -130,6 +136,28 @@ public class TimesheetServiceImpl implements TimesheetService {
         }
     }
 
+    /**
+     * A single punch (only clockIn or only clockOut) must be for today and within
+     * MAX_PUNCH_DRIFT_MINUTES of the current time, both evaluated in Asia/Kolkata.
+     */
+    private void validatePunchAgainstCurrentIstTime(LocalDate workDate, LocalTime punchTime, String punchType) {
+        LocalDate today = LocalDate.now(istClock);
+        if (!today.equals(workDate)) {
+            throw new BusinessException(String.format(
+                    "%s is only allowed for the current date (%s IST); received work date %s.",
+                    punchType, today, workDate));
+        }
+
+        long diffMinutes = TimesheetUtil.minutesFromCurrentTime(punchTime, istClock);
+        log.info("{} time {} differs from current IST time by {} minutes", punchType, punchTime, diffMinutes);
+        if (diffMinutes > MAX_PUNCH_DRIFT_MINUTES) {
+            throw new BusinessException(String.format(
+                    "%s time %s is %d minutes away from the current IST time %s; allowed difference is %d minutes.",
+                    punchType, punchTime, diffMinutes, LocalTime.now(istClock).withSecond(0).withNano(0),
+                    MAX_PUNCH_DRIFT_MINUTES));
+        }
+    }
+
     private TimesheetDto convertToDto(Timesheet timesheet) {
         log.info("Converting Timesheet entity to DTO for timesheet ID: {}", timesheet.getId());
         TimesheetDto dto = new TimesheetDto();
@@ -205,6 +233,12 @@ public class TimesheetServiceImpl implements TimesheetService {
 
         if (!hasClockIn && !hasClockOut) {
             throw new RuntimeException("At least one of clockIn or clockOut must be provided.");
+        }
+
+        if (hasClockIn != hasClockOut) {
+            validatePunchAgainstCurrentIstTime(timesheetDto.getWorkDate(),
+                    hasClockIn ? timesheetDto.getClockIn() : timesheetDto.getClockOut(),
+                    hasClockIn ? "Clock-in" : "Clock-out");
         }
 
         if (hasClockIn && hasClockOut) {
