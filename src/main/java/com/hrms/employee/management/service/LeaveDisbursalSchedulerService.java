@@ -68,6 +68,9 @@ public class LeaveDisbursalSchedulerService {
     @Autowired
     private TransactionTemplate transactionTemplate;
 
+    @Autowired
+    private LeaveYearEndRolloverService leaveYearEndRolloverService;
+
     @Scheduled(cron = "0 0 0 1 * ?")
     public void scheduledMonthlyLeave() {
         tenantJobRunner.forEachTenant("monthly leave disbursal", tenantId -> disburseMonthlyLeave());
@@ -107,10 +110,21 @@ public class LeaveDisbursalSchedulerService {
         disburseLeaveBySchedule(DisbursalFrequency.HALF_YEARLY);
     }
 
+    /** Rolls earlier years' leave balances into the current year, if not already done. */
+    public void rolloverLeaveYear() {
+        leaveYearEndRolloverService.rolloverIfNeeded(currentTenantOrDefault(), LocalDate.now().getYear());
+    }
+
     private void disburseLeaveBySchedule(DisbursalFrequency frequency) {
         String tenantId = currentTenantOrDefault();
-        String periodKey = frequency.periodKey(LocalDate.now());
+        LocalDate today = LocalDate.now();
+        int currentYear = today.getYear();
+        String periodKey = frequency.periodKey(today);
         log.debug("disburseLeaveBySchedule triggered. tenant={} frequency={} period={}", tenantId, frequency, periodKey);
+
+        // Close last year before crediting this year. Whichever 1 Jan job runs first does the
+        // rollover; the rest find it done. If it fails, nothing is credited for this tenant.
+        leaveYearEndRolloverService.rolloverIfNeeded(tenantId, currentYear);
 
         HttpHeaders headers = new HttpHeaders();
         headers.set("X-Tenant-Id", tenantId);
@@ -142,7 +156,7 @@ public class LeaveDisbursalSchedulerService {
                     if (claimed == 0) {
                         return false;
                     }
-                    disburseLeave(leave.getName(), daysToDisburse);
+                    disburseLeave(leave.getName(), daysToDisburse, currentYear, frequency.name() + " disbursal " + periodKey);
                     return true;
                 });
                 if (Boolean.TRUE.equals(disbursed)) {
@@ -163,44 +177,43 @@ public class LeaveDisbursalSchedulerService {
         return tenantId == null || tenantId.isBlank() ? defaultTenant : tenantId;
     }
 
-    private void disburseLeave(String leaveName, double daysToDisburse) {
-        log.debug("disburseLeave started - leaveName={} daysToDisburse={}", leaveName, daysToDisburse);
+    private void disburseLeave(String leaveName, double daysToDisburse, int year, String reason) {
+        log.debug("disburseLeave started - leaveName={} daysToDisburse={} year={}", leaveName, daysToDisburse, year);
 
-        List<Employee> employees = employeeRepository.findAll();
-        log.debug("Fetched {} employee(s) for disbursal of leaveName={}", employees.size(), leaveName);
+        List<Employee> employees = employeeRepository.findAll().stream()
+                .filter(employee -> !employee.isDeleted())
+                .collect(Collectors.toList());
+        log.debug("Fetched {} active employee(s) for disbursal of leaveName={}", employees.size(), leaveName);
 
-        List<EmployeeLeaveBalance> employeeLeaveBalances = leaveBalanceRepository.findAll();
-        log.debug("Fetched {} total EmployeeLeaveBalance row(s) before filtering by leaveName={}",
-                employeeLeaveBalances.size(), leaveName);
-
-        Map<EmployeeLeaveKey, EmployeeLeaveBalance> leaveBalanceMap = employeeLeaveBalances.stream()
-                .filter(e -> e.getLeaveTypeName().equals(leaveName))
+        // Only this year's open balances; earlier years are closed by the year-end rollover.
+        Map<EmployeeLeaveKey, EmployeeLeaveBalance> leaveBalanceMap = leaveBalanceRepository
+                .findByLeaveTypeNameAndYearAndIsActiveTrue(leaveName, year).stream()
                 .collect(Collectors.toMap(
-                        emp -> new EmployeeLeaveKey(emp.getEmployeeId(), leaveName),
-                        emp -> emp));
-        log.debug("Existing leave balance entries for leaveName={}: {}", leaveName, leaveBalanceMap.size());
+                        balance -> new EmployeeLeaveKey(balance.getEmployeeId(), leaveName),
+                        balance -> balance));
+        log.debug("Existing leave balance entries for leaveName={} year={}: {}", leaveName, year, leaveBalanceMap.size());
 
         List<LeaveTransaction> leaveTransactions = new ArrayList<>();
         List<EmployeeLeaveBalance> updatedLeaveBalances = new ArrayList<>();
-        int currentYear = java.time.Year.now().getValue();
         for (Employee employee : employees) {
             EmployeeLeaveKey employeeLeaveKey = new EmployeeLeaveKey(employee.getEmployeeId(), leaveName);
             EmployeeLeaveBalance balance = leaveBalanceMap.get(employeeLeaveKey);
 
             if (balance == null) {
                 log.debug("No existing balance for employeeId={} leaveName={}. Creating new balance for year={}",
-                        employee.getEmployeeId(), leaveName, currentYear);
+                        employee.getEmployeeId(), leaveName, year);
                 balance = new EmployeeLeaveBalance();
                 balance.setEmployeeId(employee.getEmployeeId());
                 balance.setLeaveTypeName(leaveName);
                 balance.setLeaveBalance(0);
-                balance.setYear(currentYear);
+                balance.setYear(year);
+                balance.setActive(true);
             }
 
-            double balanceBefore = balance.getLeaveBalance();
+            double availableBefore = balance.getAvailableDays();
             balance.setLeaveBalance(balance.getLeaveBalance() + daysToDisburse);
-            log.debug("employeeId={} leaveName={} balanceBefore={} daysToDisburse={} balanceAfter={}",
-                    employee.getEmployeeId(), leaveName, balanceBefore, daysToDisburse, balance.getLeaveBalance());
+            log.debug("employeeId={} leaveName={} availableBefore={} daysToDisburse={} availableAfter={}",
+                    employee.getEmployeeId(), leaveName, availableBefore, daysToDisburse, balance.getAvailableDays());
             updatedLeaveBalances.add(balance);
 
             LeaveTransaction transaction = new LeaveTransaction();
@@ -208,6 +221,10 @@ public class LeaveDisbursalSchedulerService {
             transaction.setLeaveTypeName(leaveName);
             transaction.setTransactionType(LeaveTransactionType.CREDIT);
             transaction.setDays(daysToDisburse);
+            transaction.setYear(year);
+            transaction.setBalanceBefore(availableBefore);
+            transaction.setBalanceAfter(balance.getAvailableDays());
+            transaction.setReason(reason);
             leaveTransactions.add(transaction);
         }
 

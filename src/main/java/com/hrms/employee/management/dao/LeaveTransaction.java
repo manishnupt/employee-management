@@ -29,14 +29,18 @@ public class LeaveTransaction {
     @Column(name = "days", nullable = false)
     private double days;
 
-    // @Column(name = "balance_before", nullable = false)
-    // private int balanceBefore;
+    /** Leave year the entry belongs to. */
+    @Column(name = "year")
+    private Integer year;
 
-    // @Column(name = "balance_after", nullable = false)
-    // private int balanceAfter;
+    @Column(name = "balance_before")
+    private Double balanceBefore;
 
-    // @Column(name = "reason")
-    // private String reason;
+    @Column(name = "balance_after")
+    private Double balanceAfter;
+
+    @Column(name = "reason")
+    private String reason;
 
     // @Column(name = "processed_by")
     // private String processedBy;

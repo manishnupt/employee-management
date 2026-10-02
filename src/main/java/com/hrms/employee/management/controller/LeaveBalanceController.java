@@ -100,6 +100,12 @@ public class LeaveBalanceController {
         leaveDisbursalSchedulerService.disburseQuarterlyLeave();
         return ResponseEntity.ok("Quarterly leave disbursed successfully");
     }
+    @PostMapping("/rollover-leave-year")
+    public ResponseEntity<String> rolloverLeaveYear() {
+        log.info("rolloverLeaveYear called");
+        leaveDisbursalSchedulerService.rolloverLeaveYear();
+        return ResponseEntity.ok("Leave year rollover completed");
+    }
     @PostMapping("/disburse-half-yearly-leave")
     public ResponseEntity<String> disburseHalfYearlyLeave() {
         log.info("disburseHalfYearlyLeave called");

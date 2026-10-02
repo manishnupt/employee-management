@@ -59,7 +59,8 @@ public class LeaveTrackerServiceImpl implements LeaveTrackerService {
 
         }
         long days = ChronoUnit.DAYS.between(leaveTrackerDto.getStartDate(), leaveTrackerDto.getEndDate()) + 1;
-        if (days > leaveBalance.get().getLeaveBalance()) {
+        // Carried-forward days count towards what the employee can take.
+        if (days > leaveBalance.get().getAvailableDays()) {
             throw new BusinessException("Insufficient leave balance for the requested leave type");
         }
         LeaveTracker leaveTracker = new LeaveTracker();

@@ -11,6 +11,8 @@ import com.hrms.employee.management.dao.DisbursalRun;
 @Repository
 public interface DisbursalRunRepository extends JpaRepository<DisbursalRun, Long> {
 
+    boolean existsByTenantIdAndKindAndTypeNameAndPeriodKey(String tenantId, String kind, String typeName, String periodKey);
+
     /**
      * Claims a disbursal period. Returns 1 if this caller now owns it, 0 if it was already disbursed.
      * Must run in the same transaction as the crediting: a concurrent claimer blocks on the

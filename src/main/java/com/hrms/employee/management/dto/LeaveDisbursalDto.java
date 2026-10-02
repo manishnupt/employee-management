@@ -14,6 +14,8 @@ public class LeaveDisbursalDto {
     private String name;
     private int totalDays;
     private boolean carryForward;
+    /** Optional cap on days carried into the next year. Null means no cap. */
+    private Double maxCarryForwardDays;
     @Enumerated(EnumType.STRING)
     private DisbursalFrequency disbursalFrequency;
     private String description;

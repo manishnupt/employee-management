@@ -167,20 +167,28 @@ public class LeaveBalanceService {
         log.info("deductLeaveFromEmployee started - employeeId={} leaveId={}", employeeId, leaveId);
 
         LeaveTracker leaveTracker=leaveTrackerRepository.findById(leaveId).orElseThrow(() -> new RuntimeException("Leave not found"));
-        EmployeeLeaveBalance balance = leaveBalanceRepository.findByEmployeeIdAndLeaveTypeName(employeeId,leaveTracker.getLeaveType()).get();
+        // Deduct from the current year's open balance; earlier years are closed by the year-end rollover.
+        int currentYear = Year.now().getValue();
+        EmployeeLeaveBalance balance = leaveBalanceRepository
+                .findByEmployeeIdAndLeaveTypeNameAndYearAndIsActiveTrue(employeeId, leaveTracker.getLeaveType(), currentYear)
+                .orElseThrow(() -> new RuntimeException("No active " + leaveTracker.getLeaveType()
+                        + " balance for employee " + employeeId + " in " + currentYear));
         long days = ChronoUnit.DAYS.between(leaveTracker.getStartDate(), leaveTracker.getEndDate()) + 1;
-        double updateBalance = balance.getLeaveBalance() - days;
-        balance.setLeaveBalance(updateBalance);
-        balance.setRemainingDays(updateBalance);
+        double availableBefore = balance.getAvailableDays();
+        balance.deductDays(days);
         leaveBalanceRepository.save(balance);
-        log.info("Deducted {} day(s) for employeeId={} leaveType={} newBalance={}",
-                days, employeeId, balance.getLeaveTypeName(), updateBalance);
+        log.info("Deducted {} day(s) for employeeId={} leaveType={} availableBefore={} availableAfter={}",
+                days, employeeId, balance.getLeaveTypeName(), availableBefore, balance.getAvailableDays());
 
         LeaveTransaction transaction = new LeaveTransaction();
         transaction.setEmployeeId(employeeId);
         transaction.setLeaveTypeName(balance.getLeaveTypeName());
         transaction.setTransactionType(LeaveTransactionType.DEBIT);
         transaction.setDays(days);
+        transaction.setYear(currentYear);
+        transaction.setBalanceBefore(availableBefore);
+        transaction.setBalanceAfter(balance.getAvailableDays());
+        transaction.setReason("Leave #" + leaveId);
         leaveTransactionRepository.save(transaction);
         log.info("deductLeaveFromEmployee completed - employeeId={} leaveId={}", employeeId, leaveId);
         leaveTracker.setStatus("APPROVED");
@@ -214,22 +222,25 @@ public class LeaveBalanceService {
         log.debug("Saved EmployeeLeaveBalance id={} employeeId={} leaveType={} leaveBalance={} remainingDays={}",
                 balance.getId(), employeeId, leaveType.getName(), balance.getLeaveBalance(), balance.getRemainingDays());
 
+        // Ledger records what was actually credited (the prorated count), not the type's annual total.
         createLeaveTransaction(employeeId, leaveType.getId(), leaveType.getName(),
-                LeaveTransactionType.INITIALIZATION, leaveType.getTotalDays(), 0, leaveType.getTotalDays(), reason);
+                LeaveTransactionType.INITIALIZATION, leavesCount, year, 0, balance.getAvailableDays(), reason);
         log.debug("createLeaveBalance completed - employeeId={} leaveType={}", employeeId, leaveType.getName());
     }
 
     private void createLeaveTransaction(String employeeId, String leaveTypeId, String leaveTypeName,
-                                        LeaveTransactionType transactionType, int days, int balanceBefore, int balanceAfter, String reason) {
+                                        LeaveTransactionType transactionType, double days, int year,
+                                        double balanceBefore, double balanceAfter, String reason) {
         LeaveTransaction transaction = new LeaveTransaction();
         transaction.setEmployeeId(employeeId);
         // transaction.setLeaveTypeId(leaveTypeId);
         transaction.setLeaveTypeName(leaveTypeName);
         transaction.setTransactionType(transactionType);
         transaction.setDays(days);
-        // transaction.setBalanceBefore(balanceBefore);
-        // transaction.setBalanceAfter(balanceAfter);
-        // transaction.setReason(reason);
+        transaction.setYear(year);
+        transaction.setBalanceBefore(balanceBefore);
+        transaction.setBalanceAfter(balanceAfter);
+        transaction.setReason(reason);
         // transaction.setProcessedBy("DAD");
 
         leaveTransactionRepository.save(transaction);

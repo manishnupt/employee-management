@@ -28,7 +28,7 @@ public class EmployeeLeaveBalance {
     // private int usedDays;
 
     @Column(name = "carry_forward_days", nullable = false)
-    private int carryForwardDays;
+    private double carryForwardDays;
 
     @Column(name = "remaining_days", nullable = false)
     private double remainingDays;
@@ -68,6 +68,19 @@ public class EmployeeLeaveBalance {
 
     public void addDays(int days) {
         this.leaveBalance += days;
+        calculateRemainingDays();
+    }
+
+    /** Total available: this year's accrual plus days carried forward. */
+    public double getAvailableDays() {
+        return this.leaveBalance + this.carryForwardDays;
+    }
+
+    /** Deducts days, using carried-forward days first, then this year's accrual. */
+    public void deductDays(double days) {
+        double fromCarryForward = Math.min(Math.max(this.carryForwardDays, 0), days);
+        this.carryForwardDays -= fromCarryForward;
+        this.leaveBalance -= days - fromCarryForward;
         calculateRemainingDays();
     }
 
