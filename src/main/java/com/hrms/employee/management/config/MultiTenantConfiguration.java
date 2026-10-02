@@ -4,7 +4,6 @@ package com.hrms.employee.management.config;
 import com.hrms.employee.management.dto.TenantDbConfig;
 import com.hrms.employee.management.dto.TenantDbConfigResponse;
 import com.hrms.employee.management.utility.MultitenantDataSource;
-import com.hrms.employee.management.utility.TenantRegistry;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -16,7 +15,6 @@ import org.springframework.jdbc.datasource.lookup.AbstractRoutingDataSource;
 import org.springframework.web.client.RestTemplate;
 
 import javax.sql.DataSource;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,15 +51,6 @@ public class MultiTenantConfiguration {
         dataSource.afterPropertiesSet();
 
         return dataSource;
-    }
-
-    @Bean
-    public TenantRegistry tenantRegistry(DataSource dataSource) {
-        List<String> tenantIds = new ArrayList<>();
-        ((AbstractRoutingDataSource) dataSource).getResolvedDataSources()
-                .keySet().forEach(key -> tenantIds.add(String.valueOf(key)));
-        log.info("Registered {} tenant(s): {}", tenantIds.size(), tenantIds);
-        return new TenantRegistry(tenantIds);
     }
 
     private List<TenantDbConfig> fetchTenantConfigsFromApi() {

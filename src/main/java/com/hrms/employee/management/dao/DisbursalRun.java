@@ -8,7 +8,7 @@ import lombok.Data;
 /**
  * One row per (tenant, kind, type, period) that has been disbursed. The unique key makes a
  * disbursal run idempotent and stops two replicas from crediting the same period twice.
- * Created per tenant database by DisbursalRunSchemaInitializer.
+ * The table is created manually in every tenant database (DDL in scheduler.md, section 2.3).
  */
 @Entity
 @Table(name = "disbursal_run", uniqueConstraints = @UniqueConstraint(

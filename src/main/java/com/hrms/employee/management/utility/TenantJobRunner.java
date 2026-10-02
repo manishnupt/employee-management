@@ -1,5 +1,6 @@
 package com.hrms.employee.management.utility;
 
+import java.util.List;
 import java.util.function.Consumer;
 
 import org.springframework.stereotype.Component;
@@ -21,8 +22,9 @@ public class TenantJobRunner {
     }
 
     public void forEachTenant(String jobName, Consumer<String> job) {
-        log.info("{} started for {} tenant(s)", jobName, tenantRegistry.getTenantIds().size());
-        for (String tenantId : tenantRegistry.getTenantIds()) {
+        List<String> tenantIds = tenantRegistry.getTenantIds();
+        log.info("{} started for {} tenant(s)", jobName, tenantIds.size());
+        for (String tenantId : tenantIds) {
             TenantContext.setCurrentTenant(tenantId);
             try {
                 job.accept(tenantId);

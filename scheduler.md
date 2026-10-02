@@ -63,7 +63,9 @@ relying on the scheduler.
 ## 2. Flow Breaks — Scheduler (Critical)
 
 ### 2.1 Cron threads have no tenant → only the default tenant is processed — ✅ FIXED
-> Each cron job now loops over every tenant in the routing DataSource (`TenantRegistry`). For each
+> Each cron job now loops over every tenant returned by the tenant microservice
+> (`${tenant.config.api.url}` → `api/v1/tenants/databases`, via `TenantRegistry`). The list is fetched
+> on every run, so newly onboarded tenants are included. For each
 > tenant, `TenantJobRunner` sets `TenantContext` and clears it afterwards. A failure in one tenant
 > is logged and the loop moves on to the next tenant.
 
@@ -101,7 +103,24 @@ relying on the scheduler.
 >
 > This was done without ShedLock. Side effects: 2.4 (missing transaction, one type aborting the
 > rest) and the null-body NPE from 2.9 are fixed too. `disbursal_run` is created in each tenant
-> database on startup by `DisbursalRunSchemaInitializer`.
+> database **manually**. Run this in every tenant database before deploying:
+>
+> ```sql
+> CREATE TABLE IF NOT EXISTS disbursal_run (
+>     id                BIGSERIAL PRIMARY KEY,
+>     tenant_id         VARCHAR(100)     NOT NULL,
+>     kind              VARCHAR(20)      NOT NULL,   -- LEAVE / WFH
+>     type_name         VARCHAR(255)     NOT NULL,
+>     frequency         VARCHAR(20)      NOT NULL,
+>     period_key        VARCHAR(20)      NOT NULL,   -- 2026-10, 2026-Q4, 2026-H2, 2026
+>     days_per_employee DOUBLE PRECISION NOT NULL,
+>     created_at        TIMESTAMP        NOT NULL DEFAULT now(),
+>     CONSTRAINT uk_disbursal_run UNIQUE (tenant_id, kind, type_name, period_key)
+> );
+> ```
+>
+> The `uk_disbursal_run` constraint is required: the claim's `ON CONFLICT` targets those exact
+> columns. Without it the insert errors and nothing is disbursed.
 
 - Every invocation unconditionally adds `totalDays / divisor`. Nothing records that a given
   `(tenant, type, period)` was already disbursed.
