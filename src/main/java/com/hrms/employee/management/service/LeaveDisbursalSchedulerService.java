@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -158,7 +159,7 @@ public class LeaveDisbursalSchedulerService {
                     if (claimed == 0) {
                         return false;
                     }
-                    disburseLeave(leave.getName(), daysToDisburse, currentYear, periodStart, frequency.name() + " disbursal " + periodKey);
+                    disburseLeave(leave, daysToDisburse, currentYear, periodStart, periodKey, frequency.name() + " disbursal " + periodKey);
                     return true;
                 });
                 if (Boolean.TRUE.equals(disbursed)) {
@@ -179,11 +180,15 @@ public class LeaveDisbursalSchedulerService {
         return tenantId == null || tenantId.isBlank() ? defaultTenant : tenantId;
     }
 
-    private void disburseLeave(String leaveName, double daysToDisburse, int year, LocalDate periodStart, String reason) {
+    private void disburseLeave(LeaveDisbursalDto leave, double daysToDisburse, int year, LocalDate periodStart,
+                               String periodKey, String reason) {
+        String leaveName = leave.getName();
         log.debug("disburseLeave started - leaveName={} daysToDisburse={} year={}", leaveName, daysToDisburse, year);
 
+        List<Employee> allEmployees = employeeRepository.findAll();
+
         // Deleted and inactive employees don't accrue; joiners in this period were prorated at init.
-        List<Employee> employees = employeeRepository.findAll().stream()
+        List<Employee> employees = allEmployees.stream()
                 .filter(employee -> DisbursalEligibility.accruesForPeriod(employee, periodStart))
                 .collect(Collectors.toList());
         log.debug("Fetched {} eligible employee(s) for disbursal of leaveName={} periodStart={}",
@@ -198,7 +203,21 @@ public class LeaveDisbursalSchedulerService {
         log.debug("Existing leave balance entries for leaveName={} year={}: {}", leaveName, year, leaveBalanceMap.size());
 
         List<LeaveTransaction> leaveTransactions = new ArrayList<>();
-        List<EmployeeLeaveBalance> updatedLeaveBalances = new ArrayList<>();
+        List<EmployeeLeaveBalance> updatedLeaveBalances = new ArrayList<>(leaveBalanceMap.values());
+
+        // Whatever is left from earlier periods is carried or lapsed before this period is credited.
+        // A balance created in this period is the joiner's prorated share of it, so it is left alone.
+        Set<String> joinedThisPeriod = allEmployees.stream()
+                .filter(employee -> employee.getCreatedAt() != null
+                        && !employee.getCreatedAt().toLocalDate().isBefore(periodStart))
+                .map(Employee::getEmployeeId)
+                .collect(Collectors.toSet());
+        for (EmployeeLeaveBalance balance : leaveBalanceMap.values()) {
+            if (!joinedThisPeriod.contains(balance.getEmployeeId())) {
+                closePreviousPeriod(balance, leave, year, periodKey, leaveTransactions);
+            }
+        }
+
         for (Employee employee : employees) {
             EmployeeLeaveKey employeeLeaveKey = new EmployeeLeaveKey(employee.getEmployeeId(), leaveName);
             EmployeeLeaveBalance balance = leaveBalanceMap.get(employeeLeaveKey);
@@ -212,13 +231,13 @@ public class LeaveDisbursalSchedulerService {
                 balance.setLeaveBalance(0);
                 balance.setYear(year);
                 balance.setActive(true);
+                updatedLeaveBalances.add(balance);
             }
 
             double availableBefore = balance.getAvailableDays();
             balance.setLeaveBalance(balance.getLeaveBalance() + daysToDisburse);
             log.debug("employeeId={} leaveName={} availableBefore={} daysToDisburse={} availableAfter={}",
                     employee.getEmployeeId(), leaveName, availableBefore, daysToDisburse, balance.getAvailableDays());
-            updatedLeaveBalances.add(balance);
 
             LeaveTransaction transaction = new LeaveTransaction();
             transaction.setEmployeeId(employee.getEmployeeId());
@@ -237,6 +256,51 @@ public class LeaveDisbursalSchedulerService {
         leaveBalanceRepository.saveAll(updatedLeaveBalances);
         leaveTransactionRepository.saveAll(leaveTransactions);
         log.debug("disburseLeave completed - leaveName={}", leaveName);
+    }
+
+    /**
+     * Applies the type's carry-forward rule to what is left of {@code balance} at a period boundary:
+     * nothing is kept without carry forward, at most maxCarryForwardDays with it (all of it if no
+     * cap is sent). What is kept moves to carry_forward_days, so leave_balance holds only the
+     * current period's accrual; the rest is written off with a LAPSE ledger row.
+     */
+    private void closePreviousPeriod(EmployeeLeaveBalance balance, LeaveDisbursalDto leave, int year,
+                                     String periodKey, List<LeaveTransaction> leaveTransactions) {
+        double remaining = balance.getAvailableDays();
+        if (remaining <= 0) {
+            return;
+        }
+
+        double carry;
+        String lapseReason;
+        if (!leave.isCarryForward()) {
+            carry = 0;
+            lapseReason = "Leave type does not allow carry forward";
+        } else {
+            Double cap = leave.getMaxCarryForwardDays();
+            carry = cap == null ? remaining : Math.min(remaining, Math.max(cap, 0));
+            lapseReason = "Exceeds carry-forward cap of " + cap + " day(s)";
+        }
+        carry = Math.round(carry * 100.0) / 100.0;
+        double lapse = Math.round((remaining - carry) * 100.0) / 100.0;
+
+        balance.setCarryForwardDays(carry);
+        balance.setLeaveBalance(0);
+
+        if (lapse > 0) {
+            LeaveTransaction transaction = new LeaveTransaction();
+            transaction.setEmployeeId(balance.getEmployeeId());
+            transaction.setLeaveTypeName(balance.getLeaveTypeName());
+            transaction.setTransactionType(LeaveTransactionType.LAPSE);
+            transaction.setDays(lapse);
+            transaction.setYear(year);
+            transaction.setBalanceBefore(remaining);
+            transaction.setBalanceAfter(carry);
+            transaction.setReason(lapseReason + " (before " + periodKey + ")");
+            leaveTransactions.add(transaction);
+            log.debug("employeeId={} leaveName={} lapsed={} carried={} before period={}",
+                    balance.getEmployeeId(), balance.getLeaveTypeName(), lapse, carry, periodKey);
+        }
     }
 
 }

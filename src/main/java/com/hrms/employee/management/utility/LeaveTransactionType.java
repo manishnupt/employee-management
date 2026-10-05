@@ -7,7 +7,7 @@ public enum LeaveTransactionType {
     CARRY_FORWARD,
     /** Carried-forward days moved out of the closing year's balance. */
     CARRY_FORWARD_OUT,
-    /** Days forfeited at year end (no carry forward, over the cap, type discontinued, employee deleted). */
+    /** Days forfeited at a period or year end (no carry forward, over the cap, type discontinued, employee deleted). */
     LAPSE,
     INITIALIZATION,
     ADJUSTMENT

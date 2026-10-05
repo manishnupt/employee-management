@@ -152,6 +152,92 @@ class WFHDisbursalSchedulerServiceTest {
         verify(disbursalRunRepository, never()).claim(any(), any(), any(), any(), any(), anyDouble());
     }
 
+    @Test
+    void lapsesTheUnusedBalanceBeforeCreditingWhenTheTypeHasNoCarryForward() {
+        companyReturns(type(TYPE, 12, false, null));
+        EmployeeWfhBalance existing = balance(7L, "e1", 3);
+        existingBalances.add(existing);
+
+        service.disburseYearlyWFH();
+
+        assertEquals(1, savedBalances().size());
+        assertEquals(12, existing.getWfhBalance());
+        List<WFHTransaction> txns = savedTransactions();
+        assertEquals(2, txns.size());
+        assertEquals("LAPSE", txns.get(0).getTransactionType());
+        assertEquals(3, txns.get(0).getDays());
+        assertEquals(3, txns.get(0).getBalanceBefore());
+        assertEquals(0, txns.get(0).getBalanceAfter());
+        assertEquals("CREDIT", txns.get(1).getTransactionType());
+        assertEquals(0, txns.get(1).getBalanceBefore());
+        assertEquals(12, txns.get(1).getBalanceAfter());
+    }
+
+    @Test
+    void keepsTheUnusedBalanceWhenCarryForwardHasNoCap() {
+        companyReturns(type(TYPE, 12, true, null));
+        EmployeeWfhBalance existing = balance(7L, "e1", 3);
+        existingBalances.add(existing);
+
+        service.disburseYearlyWFH();
+
+        assertEquals(15, existing.getWfhBalance());
+        assertEquals(1, savedTransactions().size());
+    }
+
+    @Test
+    void lapsesOnlyWhatExceedsTheCarryForwardCap() {
+        companyReturns(type(TYPE, 12, true, 2.0));
+        EmployeeWfhBalance existing = balance(7L, "e1", 5);
+        existingBalances.add(existing);
+
+        service.disburseYearlyWFH();
+
+        assertEquals(14, existing.getWfhBalance());
+        List<WFHTransaction> txns = savedTransactions();
+        assertEquals("LAPSE", txns.get(0).getTransactionType());
+        assertEquals(3, txns.get(0).getDays());
+    }
+
+    @Test
+    void lapsesEvenWhenThePeriodCreditsNothing() {
+        companyReturns(type(TYPE, 0, false, null));
+        EmployeeWfhBalance existing = balance(7L, "e1", 3);
+        existingBalances.add(existing);
+
+        service.disburseYearlyWFH();
+
+        assertEquals(0, existing.getWfhBalance());
+        List<WFHTransaction> txns = savedTransactions();
+        assertEquals(1, txns.size());
+        assertEquals("LAPSE", txns.get(0).getTransactionType());
+    }
+
+    @Test
+    void doesNotLapseTheProratedBalanceOfSomeoneWhoJoinedThisPeriod() {
+        companyReturns(type(TYPE, 12, false, null));
+        when(employeeRepository.findAll()).thenReturn(List.of(employee("joiner", "Active", false, LocalDateTime.now())));
+        EmployeeWfhBalance prorated = balance(7L, "joiner", 1);
+        existingBalances.add(prorated);
+
+        service.disburseMonthlyWFH();
+
+        assertEquals(1, prorated.getWfhBalance());
+        assertTrue(savedTransactions().isEmpty());
+    }
+
+    private void companyReturns(WFHDisbursalDto wfhType) {
+        when(restTemplate.exchange(anyString(), eq(HttpMethod.GET), any(), eq(WFHDisbursalDto[].class)))
+                .thenReturn(ResponseEntity.ok(new WFHDisbursalDto[] { wfhType }));
+    }
+
+    private static WFHDisbursalDto type(String name, int totalDays, Boolean carryForward, Double maxCarryForwardDays) {
+        WFHDisbursalDto dto = type(name, totalDays);
+        dto.setCarryForward(carryForward);
+        dto.setMaxCarryForwardDays(maxCarryForwardDays);
+        return dto;
+    }
+
     private LocalDateTime lastYear() {
         return LocalDateTime.of(year - 1, 6, 1, 9, 0);
     }

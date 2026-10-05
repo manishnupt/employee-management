@@ -45,7 +45,7 @@ owned by the **Company service**. This service only reads them.
 
 | Table | One row per | Key columns |
 |---|---|---|
-| `employee_leave_balance` | employee + leave type + year | `leave_balance` (accrued this year, decimal), `carry_forward_days` (decimal), `remaining_days` (= the two added, recomputed on save), `year`, `is_active` |
+| `employee_leave_balance` | employee + leave type + year | `leave_balance` (accrued in the current period, decimal), `carry_forward_days` (kept from earlier periods or last year, decimal), `remaining_days` (= the two added, recomputed on save), `year`, `is_active` |
 | `employee_wfh_balance` | employee + WFH type + year | `wfh_balance` (**whole days**), `carry_forward_days` (always 0 today), `remaining_days`, `year`, `is_active` |
 | `leave_transactions` | every leave balance change | `transaction_type` (enum), `days`, `year`, `balance_before`, `balance_after`, `reason` |
 | `wfh_transactions` | every WFH balance change | `transaction_type` (string), `days`, `year`, `balance_before`, `balance_after`, `reason` |
@@ -213,7 +213,8 @@ The manual `/disburse-*` endpoints call the same code for **one tenant**, taken 
 join ──► INITIALIZATION (prorated)
           │
           ▼
-period start ──► CREDIT (totalDays / periods)      repeated every period
+period start ──► carry forward / LAPSE what is left of earlier periods
+                 CREDIT (totalDays / periods)      repeated every period
           │
 apply ──► validated against available days, status Pending   (no balance change)
           │
@@ -236,6 +237,35 @@ daysToDisburse = round(totalDays / periodsPerYear, 2 decimals)
 
 The amount is added to `leave_balance` of the employee's current-year row. If the employee has no
 row for that type and year, one is created starting at 0.
+
+**Period boundary — carry forward or lapse.** Before the credit, in the same transaction, the
+type's carry-forward rule is applied to whatever is left on each current-year row of that type
+(`remaining = leave_balance + carry_forward_days`). It is the same rule the year-end rollover uses,
+applied at every period start, so a month, quarter or half-year boundary is treated like 31 Dec.
+
+| Type setting | Kept | Lapsed |
+|---|---|---|
+| `carryForward = false` | 0 | all of `remaining` |
+| `carryForward = true`, no `maxCarryForwardDays` | all of `remaining` | 0 |
+| `carryForward = true`, with a cap | `min(remaining, cap)` | the rest |
+
+- What is kept moves to `carry_forward_days` and `leave_balance` is reset to 0, so after the credit
+  `leave_balance` is this period's accrual and `carry_forward_days` is what came from earlier periods.
+- What is lapsed gets a `LAPSE` ledger row, `year` = current, reason e.g.
+  `Leave type does not allow carry forward (before 2026-11)`.
+- It applies to **every** row of the type, including employees who no longer accrue (inactive, deleted).
+- A row belonging to someone who joined in the period being credited is left alone: that balance
+  is their prorated share of this period.
+- A row at 0 or below is left as it is.
+- If a period was missed, the next run that does happen applies the rule once.
+
+Example — 24 days/year monthly, 1.5 days unused at the end of January:
+
+| Type | After the 1 Feb run | Ledger |
+|---|---|---|
+| `carryForward = false` | `leave_balance = 2`, `carry_forward_days = 0` | `LAPSE 1.5` (1.5 → 0), `CREDIT 2` (0 → 2) |
+| `carryForward = true`, no cap | `leave_balance = 2`, `carry_forward_days = 1.5` | `CREDIT 2` (1.5 → 3.5) |
+| `carryForward = true`, cap 1 | `leave_balance = 2`, `carry_forward_days = 1` | `LAPSE 0.5` (1.5 → 1), `CREDIT 2` (1 → 3) |
 
 ### 6.3 Applying for leave — `POST /employees/{employeeId}/leave-tracker`
 
@@ -341,7 +371,7 @@ After the rollover, the 1 Jan disbursal adds the first period's credit to the ne
 | `INITIALIZATION` | joining / new leave type | current | `NEW_EMPLOYEE_INITIALIZATION` / `NEW_LEAVE_TYPE_INITIALIZATION` |
 | `CREDIT` | scheduler | year credited | e.g. `MONTHLY disbursal 2026-10` |
 | `DEBIT` | approval | year of approval | `Leave #<id>` |
-| `LAPSE` | rollover | closing year | why it lapsed |
+| `LAPSE` | scheduler (period boundary), rollover | current year / closing year | why it lapsed |
 | `CARRY_FORWARD_OUT` | rollover | closing year | `Carried forward to <year>` |
 | `CARRY_FORWARD` | rollover | new year | `Carried forward from <year>` |
 
@@ -390,13 +420,32 @@ credit      = round(totalDays × periodIndex / periods) − round(totalDays × (
 | 18, quarterly | 5,4,5,4 | 18 |
 | 5, half-yearly | 3,2 | 5 |
 
-- A period that works out to 0 is still claimed in `disbursal_run`; nothing is credited and no ledger
-  row is written.
+- A period that works out to 0 is still claimed in `disbursal_run`; nothing is credited and no
+  `CREDIT` row is written. The period-boundary step below still runs.
 - The credit is added to the employee's current-year active row for that type. A row is created
   (year = current, active) only when none exists.
 - If an employee has duplicate rows for a type and year, the **oldest** is credited and a WARN is logged.
 - A type the Company service returns without a name is skipped with an ERROR log. The name is read
   from either `wfhType` or `name` in the response.
+
+**Period boundary — carry forward or lapse.** Same rule as leave (section 6.2), applied before the
+credit in the same transaction, to every current-year row of the type:
+
+| Type setting (from `/wfh-types/schedule/{freq}`) | Kept | Lapsed |
+|---|---|---|
+| `carryForward = false` | 0 | all of `wfh_balance` |
+| `carryForward = true`, no `maxCarryForwardDays` | all | 0 |
+| `carryForward = true`, with a cap | `min(wfh_balance, floor(cap))` | the rest |
+| `carryForward` not sent | all (WARN logged) | 0 |
+
+- Kept days stay in `wfh_balance`; `carry_forward_days` is not used, because WFH deduction draws
+  from `wfh_balance` only.
+- Lapsed days get a `LAPSE` ledger row, reason e.g. `WFH type does not allow carry forward (before 2026-11)`.
+- Rows of employees who joined in the period being credited are left alone. Rows of inactive or
+  deleted employees are lapsed like any other. Duplicate rows are each closed separately.
+
+Example — 12 days/year monthly, 3 days unused: `carryForward = false` → `LAPSE 3`, `CREDIT 1`,
+balance 1. `carryForward = true`, cap 2 → `LAPSE 1`, `CREDIT 1`, balance 3.
 
 ### 7.3 Applying for WFH — `POST /employees/{employeeId}/wfh`
 
@@ -450,11 +499,12 @@ do not carry forward.
 | Type | Written by | `days` | `reason` |
 |---|---|---|---|
 | `INITIALIZATION` | joining / new WFH type | whole days stored | `NEW_EMPLOYEE_INITIALIZATION` / `NEW_WFH_TYPE_INITIALIZATION` |
+| `LAPSE` | scheduler (period boundary) | days forfeited | why it lapsed, e.g. `… (before 2026-Q4)` |
 | `CREDIT` | scheduler | that period's whole days | e.g. `QUARTERLY disbursal 2026-Q4` |
 | `DEBIT` | approval | days taken from that balance | `WFH #<trackerId>` |
 | `CREDIT` | refund | days given back | `Refund WFH #<trackerId>` |
 
-Reconciliation, per employee, type and year: `INITIALIZATION + CREDIT − DEBIT = closing balance`.
+Reconciliation, per employee, type and year: `INITIALIZATION + CREDIT − DEBIT − LAPSE = closing balance`.
 
 ---
 

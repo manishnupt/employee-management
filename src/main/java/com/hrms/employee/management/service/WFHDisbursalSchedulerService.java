@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -144,7 +145,7 @@ public class WFHDisbursalSchedulerService {
                     if (claimed == 0) {
                         return false;
                     }
-                    disburseWFH(wfhTypeName, daysToDisburse, currentYear, periodStart, frequency.name() + " disbursal " + periodKey);
+                    disburseWFH(wfh, daysToDisburse, currentYear, periodStart, periodKey, frequency.name() + " disbursal " + periodKey);
                     return true;
                 });
                 if (Boolean.TRUE.equals(disbursed)) {
@@ -164,20 +165,49 @@ public class WFHDisbursalSchedulerService {
         return tenantId == null || tenantId.isBlank() ? defaultTenant : tenantId;
     }
 
-    private void disburseWFH(String wfhTypeName, int daysToDisburse, int year, LocalDate periodStart, String reason) {
-        if (daysToDisburse == 0) {
-            log.info("Nothing to credit for WFH type={} in the period starting {}", wfhTypeName, periodStart);
-            return;
-        }
+    private void disburseWFH(WFHDisbursalDto wfh, int daysToDisburse, int year, LocalDate periodStart,
+                             String periodKey, String reason) {
+        String wfhTypeName = wfh.getWfhType();
+        List<Employee> allEmployees = employeeRepository.findAll();
 
         // Deleted and inactive employees don't accrue; joiners in this period were prorated at init.
-        List<Employee> employees = employeeRepository.findAll().stream()
+        List<Employee> employees = allEmployees.stream()
                 .filter(employee -> DisbursalEligibility.accruesForPeriod(employee, periodStart))
                 .collect(Collectors.toList());
 
+        List<EmployeeWfhBalance> existingBalances = employeeWfhBalanceRepository
+                .findByWfhTypeNameAndYearAndIsActiveTrue(wfhTypeName, year);
+
+        List<EmployeeWfhBalance> updatedBalances = new ArrayList<>();
+        List<WFHTransaction> transactions = new ArrayList<>();
+
+        // Whatever is left from earlier periods is carried or lapsed before this period is credited.
+        // A balance created in this period is the joiner's prorated share of it, so it is left alone.
+        Set<String> joinedThisPeriod = allEmployees.stream()
+                .filter(employee -> employee.getCreatedAt() != null
+                        && !employee.getCreatedAt().toLocalDate().isBefore(periodStart))
+                .map(Employee::getEmployeeId)
+                .collect(Collectors.toSet());
+        if (wfh.getCarryForward() == null) {
+            log.warn("WFH type={} has no carryForward setting; unused days are left to accumulate", wfhTypeName);
+        } else {
+            for (EmployeeWfhBalance balance : existingBalances) {
+                if (!joinedThisPeriod.contains(balance.getEmployeeId())
+                        && closePreviousPeriod(balance, wfh, year, periodKey, transactions)) {
+                    updatedBalances.add(balance);
+                }
+            }
+        }
+
+        if (daysToDisburse == 0) {
+            log.info("Nothing to credit for WFH type={} in the period starting {}", wfhTypeName, periodStart);
+            employeeWfhBalanceRepository.saveAll(updatedBalances);
+            wfhTransactionRepository.saveAll(transactions);
+            return;
+        }
+
         // This year's open balance per employee. If an employee has duplicate rows, credit the oldest.
-        Map<String, EmployeeWfhBalance> balanceByEmployee = employeeWfhBalanceRepository
-                .findByWfhTypeNameAndYearAndIsActiveTrue(wfhTypeName, year).stream()
+        Map<String, EmployeeWfhBalance> balanceByEmployee = existingBalances.stream()
                 .collect(Collectors.toMap(
                         EmployeeWfhBalance::getEmployeeId,
                         balance -> balance,
@@ -187,8 +217,6 @@ public class WFHDisbursalSchedulerService {
                             return first.getId() <= second.getId() ? first : second;
                         }));
 
-        List<EmployeeWfhBalance> updatedBalances = new ArrayList<>();
-        List<WFHTransaction> transactions = new ArrayList<>();
         for (Employee employee : employees) {
             EmployeeWfhBalance balance = balanceByEmployee.get(employee.getEmployeeId());
             if (balance == null) {
@@ -201,7 +229,10 @@ public class WFHDisbursalSchedulerService {
             }
             int balanceBefore = balance.getWfhBalance() == null ? 0 : balance.getWfhBalance();
             balance.setWfhBalance(balanceBefore + daysToDisburse);
-            updatedBalances.add(balance);
+            EmployeeWfhBalance credited = balance;
+            if (updatedBalances.stream().noneMatch(updated -> updated == credited)) {
+                updatedBalances.add(balance);
+            }
 
             WFHTransaction transaction = new WFHTransaction();
             transaction.setEmployeeId(employee.getEmployeeId());
@@ -219,6 +250,49 @@ public class WFHDisbursalSchedulerService {
         wfhTransactionRepository.saveAll(transactions);
         log.info("Credited {} WFH day(s) to {} employee(s) for WFH type={} year={}",
                 daysToDisburse, employees.size(), wfhTypeName, year);
+    }
+
+    /**
+     * Applies the type's carry-forward rule to what is left of {@code balance} at a period boundary:
+     * nothing is kept without carry forward, at most maxCarryForwardDays (whole days) with it, all
+     * of it if no cap is sent. The rest is written off with a LAPSE ledger row. Returns whether the
+     * balance changed.
+     */
+    private boolean closePreviousPeriod(EmployeeWfhBalance balance, WFHDisbursalDto wfh, int year,
+                                        String periodKey, List<WFHTransaction> transactions) {
+        int remaining = balance.getWfhBalance() == null ? 0 : balance.getWfhBalance();
+        if (remaining <= 0) {
+            return false;
+        }
+
+        int carry;
+        String lapseReason;
+        if (!wfh.getCarryForward()) {
+            carry = 0;
+            lapseReason = "WFH type does not allow carry forward";
+        } else {
+            Double cap = wfh.getMaxCarryForwardDays();
+            carry = cap == null ? remaining : Math.min(remaining, (int) Math.floor(Math.max(cap, 0)));
+            lapseReason = "Exceeds carry-forward cap of " + cap + " day(s)";
+        }
+        int lapse = remaining - carry;
+        if (lapse == 0) {
+            return false;
+        }
+
+        balance.setWfhBalance(carry);
+
+        WFHTransaction transaction = new WFHTransaction();
+        transaction.setEmployeeId(balance.getEmployeeId());
+        transaction.setWfhTypeName(balance.getWfhTypeName());
+        transaction.setDays(lapse);
+        transaction.setTransactionType("LAPSE");
+        transaction.setYear(year);
+        transaction.setBalanceBefore((double) remaining + balance.getCarryForwardDays());
+        transaction.setBalanceAfter((double) carry + balance.getCarryForwardDays());
+        transaction.setReason(lapseReason + " (before " + periodKey + ")");
+        transactions.add(transaction);
+        return true;
     }
 
 }
