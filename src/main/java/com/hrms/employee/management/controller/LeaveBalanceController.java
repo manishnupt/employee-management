@@ -47,13 +47,6 @@ public class LeaveBalanceController {
         return ResponseEntity.ok("Leave balances initialized successfully");
     }
 
-    @PostMapping("/initialize-for-new-leave-type")
-    public ResponseEntity<String> initializeLeaveBalanceForNewLeaveType(@RequestBody LeaveType leaveType) {
-        log.info("initializeLeaveBalanceForNewLeaveType called - leaveType={}", leaveType.getName());
-        leaveBalanceService.initializeLeaveBalanceForNewLeaveType(leaveType);
-        return ResponseEntity.ok("Leave balances initialized for new leave type");
-    }
-
     // @PostMapping("/assign/{employeeId}")
     // public ResponseEntity<String> assignLeaveToEmployee(@PathVariable String employeeId,
     //                                                     @Valid @RequestBody LeaveAssignmentDto assignmentDto) {

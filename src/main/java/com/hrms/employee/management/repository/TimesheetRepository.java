@@ -26,5 +26,9 @@ public interface TimesheetRepository extends JpaRepository<Timesheet, Long> {
     @Query("SELECT t FROM Timesheet t WHERE t.employee.employeeId = :employeeId AND t.workDate BETWEEN :startDate AND :endDate")
     List<Timesheet> findByEmployee_EmployeeIdAndWorkDateBetween(String employeeId, LocalDate startDate, LocalDate endDate);
 
+    /** Approved timesheets with a work date in [startDate, endDate]; status is matched case-insensitively. */
+    @Query("SELECT t FROM Timesheet t WHERE t.employee.employeeId = :employeeId AND UPPER(t.status) = 'APPROVED' AND t.workDate BETWEEN :startDate AND :endDate ORDER BY t.workDate")
+    List<Timesheet> findApprovedInRange(String employeeId, LocalDate startDate, LocalDate endDate);
+
     List<Timesheet> findByEmployee_EmployeeIdAndLinkedActionItemIdIsNull(String employeeId);
 }

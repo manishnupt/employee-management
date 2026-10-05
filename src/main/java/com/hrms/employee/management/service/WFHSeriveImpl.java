@@ -9,9 +9,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.hrms.employee.management.dao.Employee;
+import com.hrms.employee.management.dao.LeaveTracker;
 import com.hrms.employee.management.dao.WFHTracker;
 import com.hrms.employee.management.dto.WFHTrackerRequest;
+import com.hrms.employee.management.exceptions.BusinessException;
 import com.hrms.employee.management.repository.EmployeeRepository;
+import com.hrms.employee.management.repository.LeaveTrackerRepository;
 import com.hrms.employee.management.repository.WFHTrackerRepository;
 
 @Log4j2
@@ -25,6 +28,9 @@ public class WFHSeriveImpl implements WFHService {
     @Autowired
     private WfhBalanceService wfhBalanceService;
 
+    @Autowired
+    private LeaveTrackerRepository leaveTrackerRepository;
+
     public WFHSeriveImpl(WFHTrackerRepository wfhRepository,EmployeeRepository employeeRepository,
             ActionItemService actionItemService) {
         this.actionItemService = actionItemService;
@@ -35,6 +41,8 @@ public class WFHSeriveImpl implements WFHService {
     public WFHTracker applyWFH(String employeeId, WFHTrackerRequest workFromHomeRequest) {
         Employee employee = employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
+
+        validateNoApprovedLeave(employeeId, workFromHomeRequest.getStartDate(), workFromHomeRequest.getEndDate());
 
         WFHTracker workFromHome = WFHTracker.builder()
                 .startDate(workFromHomeRequest.getStartDate())
@@ -58,6 +66,22 @@ public class WFHSeriveImpl implements WFHService {
         }
 
         return wfhTracker;
+    }
+
+    /** WFH cannot be requested for a range that includes a day already covered by an approved leave. */
+    private void validateNoApprovedLeave(String employeeId, LocalDate startDate, LocalDate endDate) {
+        if (startDate == null || endDate == null || endDate.isBefore(startDate)) {
+            throw new BusinessException("WFH end date must be on or after the start date");
+        }
+        List<LeaveTracker> approvedLeaves = leaveTrackerRepository.findApprovedOverlappingRange(employeeId, startDate, endDate);
+        if (!approvedLeaves.isEmpty()) {
+            LeaveTracker leave = approvedLeaves.get(0);
+            log.warn("Rejected WFH request for employee {} from {} to {}: approved leave {} from {} to {}",
+                    employeeId, startDate, endDate, leave.getId(), leave.getStartDate(), leave.getEndDate());
+            throw new BusinessException(String.format(
+                    "Cannot raise a WFH request from %s to %s. Leave is already approved from %s to %s.",
+                    startDate, endDate, leave.getStartDate(), leave.getEndDate()));
+        }
     }
 
     public List<WFHTracker> getWFHHistory(String employeeId) {

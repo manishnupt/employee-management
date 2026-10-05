@@ -14,11 +14,15 @@ import org.springframework.transaction.annotation.Transactional;
 import com.hrms.employee.management.dao.Employee;
 import com.hrms.employee.management.dao.EmployeeLeaveBalance;
 import com.hrms.employee.management.dao.LeaveTracker;
+import com.hrms.employee.management.dao.Timesheet;
+import com.hrms.employee.management.dao.WFHTracker;
 import com.hrms.employee.management.dto.LeaveTrackerDto;
 import com.hrms.employee.management.dto.LeaveTrackerResponse;
 import com.hrms.employee.management.repository.EmployeeLeaveBalanceRepository;
 import com.hrms.employee.management.repository.EmployeeRepository;
 import com.hrms.employee.management.repository.LeaveTrackerRepository;
+import com.hrms.employee.management.repository.TimesheetRepository;
+import com.hrms.employee.management.repository.WFHTrackerRepository;
 import com.hrms.employee.management.utility.WorkingDays;
 
 @Slf4j
@@ -35,6 +39,12 @@ public class LeaveTrackerServiceImpl implements LeaveTrackerService {
 
     @Autowired
     private LeaveBalanceService leaveBalanceService;
+
+    @Autowired
+    private WFHTrackerRepository wfhTrackerRepository;
+
+    @Autowired
+    private TimesheetRepository timesheetRepository;
 
     public LeaveTrackerServiceImpl(LeaveTrackerRepository leaveTrackerRepository, EmployeeRepository employeeRepository,ActionItemService actionItemService
             , EmployeeLeaveBalanceRepository employeeLeaveBalanceRepository) {
@@ -54,6 +64,8 @@ public class LeaveTrackerServiceImpl implements LeaveTrackerService {
                 || leaveTrackerDto.getEndDate().isBefore(leaveTrackerDto.getStartDate())) {
             throw new BusinessException("Leave end date must be on or after the start date");
         }
+        validateNoApprovedWfh(employeeId, leaveTrackerDto.getStartDate(), leaveTrackerDto.getEndDate());
+        validateNoApprovedTimesheet(employeeId, leaveTrackerDto.getStartDate(), leaveTrackerDto.getEndDate());
         // Same days the approval will deduct: weekends don't consume balance.
         long days = WorkingDays.between(leaveTrackerDto.getStartDate(), leaveTrackerDto.getEndDate());
         if (days == 0) {
@@ -101,6 +113,33 @@ public class LeaveTrackerServiceImpl implements LeaveTrackerService {
         return new LeaveTrackerResponse("Leave applied successfully", "Success");
 
     }
+
+    /** Leave cannot be requested for a range that includes a day already covered by an approved WFH. */
+    private void validateNoApprovedWfh(String employeeId, LocalDate startDate, LocalDate endDate) {
+        List<WFHTracker> approvedWfhs = wfhTrackerRepository.findApprovedOverlappingRange(employeeId, startDate, endDate);
+        if (!approvedWfhs.isEmpty()) {
+            WFHTracker wfh = approvedWfhs.get(0);
+            log.warn("Rejected leave request for employee {} from {} to {}: approved WFH {} from {} to {}",
+                    employeeId, startDate, endDate, wfh.getId(), wfh.getStartDate(), wfh.getEndDate());
+            throw new BusinessException(String.format(
+                    "Cannot raise a leave request from %s to %s. WFH is already approved from %s to %s.",
+                    startDate, endDate, wfh.getStartDate(), wfh.getEndDate()));
+        }
+    }
+
+    /** Leave cannot be requested for a range that includes a day with an approved timesheet. */
+    private void validateNoApprovedTimesheet(String employeeId, LocalDate startDate, LocalDate endDate) {
+        List<Timesheet> approvedTimesheets = timesheetRepository.findApprovedInRange(employeeId, startDate, endDate);
+        if (!approvedTimesheets.isEmpty()) {
+            Timesheet timesheet = approvedTimesheets.get(0);
+            log.warn("Rejected leave request for employee {} from {} to {}: approved timesheet {} on {}",
+                    employeeId, startDate, endDate, timesheet.getId(), timesheet.getWorkDate());
+            throw new BusinessException(String.format(
+                    "Cannot raise a leave request from %s to %s. Timesheet is already approved for %s.",
+                    startDate, endDate, timesheet.getWorkDate()));
+        }
+    }
+
     @Override
     public LeaveTracker getLeaveById(Long id) {
         return leaveTrackerRepository.findById(id)

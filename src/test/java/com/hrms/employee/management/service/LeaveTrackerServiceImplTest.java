@@ -21,11 +21,15 @@ import org.springframework.test.util.ReflectionTestUtils;
 import com.hrms.employee.management.dao.Employee;
 import com.hrms.employee.management.dao.EmployeeLeaveBalance;
 import com.hrms.employee.management.dao.LeaveTracker;
+import com.hrms.employee.management.dao.Timesheet;
+import com.hrms.employee.management.dao.WFHTracker;
 import com.hrms.employee.management.dto.LeaveTrackerDto;
 import com.hrms.employee.management.exceptions.BusinessException;
 import com.hrms.employee.management.repository.EmployeeLeaveBalanceRepository;
 import com.hrms.employee.management.repository.EmployeeRepository;
 import com.hrms.employee.management.repository.LeaveTrackerRepository;
+import com.hrms.employee.management.repository.TimesheetRepository;
+import com.hrms.employee.management.repository.WFHTrackerRepository;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -39,6 +43,8 @@ class LeaveTrackerServiceImplTest {
     @Mock private ActionItemService actionItemService;
     @Mock private EmployeeLeaveBalanceRepository employeeLeaveBalanceRepository;
     @Mock private LeaveBalanceService leaveBalanceService;
+    @Mock private WFHTrackerRepository wfhTrackerRepository;
+    @Mock private TimesheetRepository timesheetRepository;
 
     private LeaveTrackerServiceImpl service;
     private LeaveTracker leave;
@@ -48,6 +54,8 @@ class LeaveTrackerServiceImplTest {
         service = new LeaveTrackerServiceImpl(leaveTrackerRepository, employeeRepository, actionItemService,
                 employeeLeaveBalanceRepository);
         ReflectionTestUtils.setField(service, "leaveBalanceService", leaveBalanceService);
+        ReflectionTestUtils.setField(service, "wfhTrackerRepository", wfhTrackerRepository);
+        ReflectionTestUtils.setField(service, "timesheetRepository", timesheetRepository);
 
         Employee employee = new Employee();
         employee.setEmployeeId(EMPLOYEE_ID);
@@ -129,6 +137,35 @@ class LeaveTrackerServiceImplTest {
                 () -> service.applyLeave(EMPLOYEE_ID, request(LocalDate.of(2026, 10, 9), LocalDate.of(2026, 10, 5))));
         assertThrows(BusinessException.class,
                 () -> service.applyLeave(EMPLOYEE_ID, request(LocalDate.of(2026, 10, 10), LocalDate.of(2026, 10, 11))));
+
+        verify(leaveTrackerRepository, never()).save(any());
+    }
+
+    @Test
+    void applyRefusesDatesCoveredByApprovedWfh() {
+        stubApply(10);
+        LocalDate start = LocalDate.of(2026, 10, 8);
+        LocalDate end = LocalDate.of(2026, 10, 12);
+        WFHTracker wfh = WFHTracker.builder().startDate(LocalDate.of(2026, 10, 9)).endDate(LocalDate.of(2026, 10, 9))
+                .status("APPROVED").build();
+        when(wfhTrackerRepository.findApprovedOverlappingRange(EMPLOYEE_ID, start, end)).thenReturn(List.of(wfh));
+
+        assertThrows(BusinessException.class, () -> service.applyLeave(EMPLOYEE_ID, request(start, end)));
+
+        verify(leaveTrackerRepository, never()).save(any());
+    }
+
+    @Test
+    void applyRefusesDatesWithApprovedTimesheet() {
+        stubApply(10);
+        LocalDate start = LocalDate.of(2026, 10, 8);
+        LocalDate end = LocalDate.of(2026, 10, 12);
+        Timesheet timesheet = new Timesheet();
+        timesheet.setWorkDate(LocalDate.of(2026, 10, 9));
+        timesheet.setStatus("APPROVED");
+        when(timesheetRepository.findApprovedInRange(EMPLOYEE_ID, start, end)).thenReturn(List.of(timesheet));
+
+        assertThrows(BusinessException.class, () -> service.applyLeave(EMPLOYEE_ID, request(start, end)));
 
         verify(leaveTrackerRepository, never()).save(any());
     }

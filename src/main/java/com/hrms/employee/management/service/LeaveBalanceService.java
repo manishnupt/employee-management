@@ -121,27 +121,7 @@ public class LeaveBalanceService {
         log.debug("initializeLeaveBalanceForNewEmployee completed - employeeId={}", employeeId);
     }
 
-    public void initializeLeaveBalanceForNewLeaveType(LeaveType leaveType) {
-        log.info("initializeLeaveBalanceForNewLeaveType started - leaveType={}", leaveType.getName());
 
-        List<Employee> employees = employeeRepository.findAll().stream()
-                .filter(DisbursalEligibility::isActive)
-                .collect(Collectors.toList());
-        LocalDate today = LocalDate.now();
-        LocalDate cycleStart = today.with(TemporalAdjusters.firstDayOfYear());
-        LocalDate cycleEnd = today.with(TemporalAdjusters.lastDayOfYear());
-        int currentYear = today.getYear();
-        log.info("Fetched {} active employee(s) for new leaveType={}", employees.size(), leaveType.getName());
-
-        for (Employee employee : employees) {
-            double leavesCount = ProrataLeaveCalculator.calculateProrataLeaves(today, leaveType.getTotalDays(), ProrataLeaveCalculator.Frequency.valueOf(leaveType.getDisbursalFrequency().name()), cycleStart, cycleEnd);
-            log.info("Prorated leavesCount={} for employeeId={} leaveType={} totalDays={} frequency={} cycleStart={} cycleEnd={}",
-                    leavesCount, employee.getEmployeeId(), leaveType.getName(), leaveType.getTotalDays(),
-                    leaveType.getDisbursalFrequency(), cycleStart, cycleEnd);
-            createLeaveBalance(employee.getEmployeeId(), leaveType, currentYear, "NEW_LEAVE_TYPE_INITIALIZATION", leavesCount);
-        }
-        log.info("initializeLeaveBalanceForNewLeaveType completed - leaveType={}", leaveType.getName());
-    }
 
     // public void assignLeaveToEmployee(String employeeId, String leaveTypeId, int days, String reason) {
     //     int currentYear = Year.now().getValue();
@@ -226,7 +206,6 @@ public class LeaveBalanceService {
 
         EmployeeLeaveBalance balance = new EmployeeLeaveBalance();
         balance.setEmployeeId(employeeId);
-        // balance.setLeaveTypeId(leaveType.getId());
         balance.setLeaveTypeName(leaveType.getName());
         balance.setLeaveBalance(leavesCount);
         balance.setCarryForwardDays(0);
@@ -248,7 +227,6 @@ public class LeaveBalanceService {
                                         double balanceBefore, double balanceAfter, String reason) {
         LeaveTransaction transaction = new LeaveTransaction();
         transaction.setEmployeeId(employeeId);
-        // transaction.setLeaveTypeId(leaveTypeId);
         transaction.setLeaveTypeName(leaveTypeName);
         transaction.setTransactionType(transactionType);
         transaction.setDays(days);
@@ -256,7 +234,6 @@ public class LeaveBalanceService {
         transaction.setBalanceBefore(balanceBefore);
         transaction.setBalanceAfter(balanceAfter);
         transaction.setReason(reason);
-        // transaction.setProcessedBy("DAD");
 
         leaveTransactionRepository.save(transaction);
     }

@@ -15,10 +15,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import com.hrms.employee.management.dao.Employee;
+import com.hrms.employee.management.dao.LeaveTracker;
 import com.hrms.employee.management.dao.Timesheet;
 import com.hrms.employee.management.dto.TimesheetDto;
 import com.hrms.employee.management.exceptions.BusinessException;
 import com.hrms.employee.management.repository.EmployeeRepository;
+import com.hrms.employee.management.repository.LeaveTrackerRepository;
 import com.hrms.employee.management.repository.TimesheetRepository;
 
 @Service
@@ -36,6 +38,9 @@ public class TimesheetServiceImpl implements TimesheetService {
     private EmployeeRepository employeeRepository;
 
     @Autowired
+    private LeaveTrackerRepository leaveTrackerRepository;
+
+    @Autowired
     ActionItemService actionItemService;
 
     @Override
@@ -46,6 +51,7 @@ public class TimesheetServiceImpl implements TimesheetService {
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
 
         validateWorkDateNotBeforeOnboarding(employee, timesheetDto.getWorkDate());
+        validateNoApprovedLeave(employeeId, timesheetDto.getWorkDate());
 
         // Find existing timesheet for this employee and date
         Timesheet savedTimesheet =
@@ -136,6 +142,19 @@ public class TimesheetServiceImpl implements TimesheetService {
         }
     }
 
+    /** A timesheet cannot be filled for a day covered by an approved leave. */
+    private void validateNoApprovedLeave(String employeeId, LocalDate workDate) {
+        List<LeaveTracker> approvedLeaves = leaveTrackerRepository.findApprovedOverlappingRange(employeeId, workDate, workDate);
+        if (!approvedLeaves.isEmpty()) {
+            LeaveTracker leave = approvedLeaves.get(0);
+            log.warn("Rejected timesheet for employee {} on {}: approved leave {} from {} to {}",
+                    employeeId, workDate, leave.getId(), leave.getStartDate(), leave.getEndDate());
+            throw new BusinessException(String.format(
+                    "Cannot fill timesheet for %s. Leave is already approved from %s to %s.",
+                    workDate, leave.getStartDate(), leave.getEndDate()));
+        }
+    }
+
     /**
      * A single punch (only clockIn or only clockOut) must be for today and within
      * MAX_PUNCH_DRIFT_MINUTES of the current time, both evaluated in Asia/Kolkata.
@@ -180,6 +199,7 @@ public class TimesheetServiceImpl implements TimesheetService {
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
 
         validateWorkDateNotBeforeOnboarding(employee, timesheetDto.getWorkDate());
+        validateNoApprovedLeave(employeeId, timesheetDto.getWorkDate());
 
         Timesheet timesheet = timesheetRepository.findByworkDateAndEmployee_EmployeeId(
                 timesheetDto.getWorkDate(), employeeId);
@@ -225,6 +245,7 @@ public class TimesheetServiceImpl implements TimesheetService {
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
 
         validateWorkDateNotBeforeOnboarding(employee, timesheetDto.getWorkDate());
+        validateNoApprovedLeave(employeeId, timesheetDto.getWorkDate());
 
         Timesheet timesheet = timesheetRepository.findByworkDateAndEmployee_EmployeeId(
                 timesheetDto.getWorkDate(), employeeId);

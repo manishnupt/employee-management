@@ -96,6 +96,12 @@ public class EmployeeServiceImpl implements EmployeeService {
         Employee savedEmployee = employeeRepository.save(employee);
         log.info("saved employee with id: {}", savedEmployee.getEmployeeId());
 
+        intializeLeaveAndWfhBalance(userId);
+
+        return savedEmployee;
+    }
+
+    private void intializeLeaveAndWfhBalance(String userId) {
         try {
             leaveBalanceService.initializeLeaveBalanceForNewEmployee(userId);
             log.info("initialized leave balances for employee {}", userId);
@@ -109,8 +115,6 @@ public class EmployeeServiceImpl implements EmployeeService {
         } catch (Exception e) {
             log.error("Failed to initialize wfh balances for employee {}: {}", userId, e.getMessage());
         }
-
-        return savedEmployee;
     }
 
     @Override
