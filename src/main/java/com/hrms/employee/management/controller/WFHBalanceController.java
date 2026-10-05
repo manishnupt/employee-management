@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.hrms.employee.management.dto.WfhBalanceDto;
 import com.hrms.employee.management.dto.WfhType;
+import com.hrms.employee.management.service.WFHDisbursalSchedulerService;
 import com.hrms.employee.management.service.WfhBalanceService;
 import org.springframework.web.bind.annotation.RequestBody;
 
@@ -27,6 +28,9 @@ public class WFHBalanceController {
 
     @Autowired
     private WfhBalanceService wfhBalanceService;
+
+    @Autowired
+    private WFHDisbursalSchedulerService wfhDisbursalSchedulerService;
 
     @GetMapping("/{employeeId}")
     public ResponseEntity<List<WfhBalanceDto>> getEmployeeWfhBalances(@PathVariable String employeeId) {
@@ -56,9 +60,37 @@ public class WFHBalanceController {
 
     //disbursal logic
     @PostMapping("/{employeeId}/disburse/{wfhTrackerId}")
-    public void disburseWfhBalance(Long employeeId, Long wfhTrackerId) {
+    public void disburseWfhBalance(@PathVariable String employeeId, @PathVariable Long wfhTrackerId) {
         log.info("Received request to disburse WFH balance for employeeId: {}, wfhTrackerId: {}", employeeId, wfhTrackerId);
         wfhBalanceService.disburseWfhBalance(employeeId, wfhTrackerId);
+    }
+
+    @PostMapping("/disburse-monthly-wfh")
+    public ResponseEntity<String> disburseMonthlyWfh() {
+        log.info("disburseMonthlyWfh called");
+        wfhDisbursalSchedulerService.disburseMonthlyWFH();
+        return ResponseEntity.ok("Monthly WFH disbursed successfully");
+    }
+
+    @PostMapping("/disburse-quarterly-wfh")
+    public ResponseEntity<String> disburseQuarterlyWfh() {
+        log.info("disburseQuarterlyWfh called");
+        wfhDisbursalSchedulerService.disburseQuarterlyWFH();
+        return ResponseEntity.ok("Quarterly WFH disbursed successfully");
+    }
+
+    @PostMapping("/disburse-half-yearly-wfh")
+    public ResponseEntity<String> disburseHalfYearlyWfh() {
+        log.info("disburseHalfYearlyWfh called");
+        wfhDisbursalSchedulerService.disburseHalfYearlyWFH();
+        return ResponseEntity.ok("Half-yearly WFH disbursed successfully");
+    }
+
+    @PostMapping("/disburse-yearly-wfh")
+    public ResponseEntity<String> disburseYearlyWfh() {
+        log.info("disburseYearlyWfh called");
+        wfhDisbursalSchedulerService.disburseYearlyWFH();
+        return ResponseEntity.ok("Yearly WFH disbursed successfully");
     }
 
 }

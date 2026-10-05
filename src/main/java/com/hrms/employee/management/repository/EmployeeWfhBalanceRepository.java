@@ -10,5 +10,7 @@ public interface EmployeeWfhBalanceRepository extends JpaRepository<EmployeeWfhB
     EmployeeWfhBalance findByEmployeeIdAndWfhTypeName(String employeeId, String wfhTypeName);
 
     List<EmployeeWfhBalance> findByEmployeeId(String employeeId);
+    List<EmployeeWfhBalance> findByEmployeeIdAndYearAndIsActiveTrue(String employeeId, int year);
+    List<EmployeeWfhBalance> findByWfhTypeNameAndYearAndIsActiveTrue(String wfhTypeName, int year);
 
 }

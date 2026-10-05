@@ -24,6 +24,19 @@ public class WFHTransaction {
     private double days;
     private String transactionType;
 
+    // Nullable: rows written before these columns existed have none.
+    @Column(name = "year")
+    private Integer year;
+
+    @Column(name = "balance_before")
+    private Double balanceBefore;
+
+    @Column(name = "balance_after")
+    private Double balanceAfter;
+
+    @Column(name = "reason")
+    private String reason;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

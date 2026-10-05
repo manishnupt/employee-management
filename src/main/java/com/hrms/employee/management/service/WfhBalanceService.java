@@ -9,7 +9,7 @@ public interface WfhBalanceService {
 
       public void deductWfhBalance(String employeeId, Long wfhTrackerId);
 
-      public void disburseWfhBalance(Long employeeId, Long wfhTrackerId);
+      public void disburseWfhBalance(String employeeId, Long wfhTrackerId);
 
       public List<WfhBalanceDto> getEmployeeWfhBalances(String employeeId);
 

@@ -26,6 +26,7 @@ import com.hrms.employee.management.repository.DisbursalRunRepository;
 import com.hrms.employee.management.repository.EmployeeLeaveBalanceRepository;
 import com.hrms.employee.management.repository.EmployeeRepository;
 import com.hrms.employee.management.repository.LeaveTransactionRepository;
+import com.hrms.employee.management.utility.DisbursalEligibility;
 import com.hrms.employee.management.utility.DisbursalFrequency;
 import com.hrms.employee.management.utility.EmployeeLeaveKey;
 import com.hrms.employee.management.utility.LeaveTransactionType;
@@ -120,6 +121,7 @@ public class LeaveDisbursalSchedulerService {
         LocalDate today = LocalDate.now();
         int currentYear = today.getYear();
         String periodKey = frequency.periodKey(today);
+        LocalDate periodStart = frequency.periodStart(today);
         log.debug("disburseLeaveBySchedule triggered. tenant={} frequency={} period={}", tenantId, frequency, periodKey);
 
         // Close last year before crediting this year. Whichever 1 Jan job runs first does the
@@ -156,7 +158,7 @@ public class LeaveDisbursalSchedulerService {
                     if (claimed == 0) {
                         return false;
                     }
-                    disburseLeave(leave.getName(), daysToDisburse, currentYear, frequency.name() + " disbursal " + periodKey);
+                    disburseLeave(leave.getName(), daysToDisburse, currentYear, periodStart, frequency.name() + " disbursal " + periodKey);
                     return true;
                 });
                 if (Boolean.TRUE.equals(disbursed)) {
@@ -177,13 +179,15 @@ public class LeaveDisbursalSchedulerService {
         return tenantId == null || tenantId.isBlank() ? defaultTenant : tenantId;
     }
 
-    private void disburseLeave(String leaveName, double daysToDisburse, int year, String reason) {
+    private void disburseLeave(String leaveName, double daysToDisburse, int year, LocalDate periodStart, String reason) {
         log.debug("disburseLeave started - leaveName={} daysToDisburse={} year={}", leaveName, daysToDisburse, year);
 
+        // Deleted and inactive employees don't accrue; joiners in this period were prorated at init.
         List<Employee> employees = employeeRepository.findAll().stream()
-                .filter(employee -> !employee.isDeleted())
+                .filter(employee -> DisbursalEligibility.accruesForPeriod(employee, periodStart))
                 .collect(Collectors.toList());
-        log.debug("Fetched {} active employee(s) for disbursal of leaveName={}", employees.size(), leaveName);
+        log.debug("Fetched {} eligible employee(s) for disbursal of leaveName={} periodStart={}",
+                employees.size(), leaveName, periodStart);
 
         // Only this year's open balances; earlier years are closed by the year-end rollover.
         Map<EmployeeLeaveKey, EmployeeLeaveBalance> leaveBalanceMap = leaveBalanceRepository

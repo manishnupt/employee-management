@@ -6,13 +6,16 @@ import com.hrms.employee.management.dao.LeaveTracker;
 import com.hrms.employee.management.dao.LeaveTransaction;
 import com.hrms.employee.management.dto.LeaveBalanceDto;
 import com.hrms.employee.management.dto.LeaveType;
+import com.hrms.employee.management.exceptions.BusinessException;
 import com.hrms.employee.management.repository.EmployeeRepository;
 import com.hrms.employee.management.repository.LeaveTrackerRepository;
 import com.hrms.employee.management.repository.EmployeeLeaveBalanceRepository;
 import com.hrms.employee.management.repository.LeaveTransactionRepository;
+import com.hrms.employee.management.utility.DisbursalEligibility;
 import com.hrms.employee.management.utility.LeaveTransactionType;
 import com.hrms.employee.management.utility.ProrataLeaveCalculator;
 import com.hrms.employee.management.utility.TenantContext;
+import com.hrms.employee.management.utility.WorkingDays;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -24,7 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.Year;
-import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.time.LocalDate;
@@ -95,15 +98,16 @@ public class LeaveBalanceService {
             );
 
             LeaveType[] leaveTypes = response.getBody();
-            LocalDate cycleStart = LocalDate.of(2026, 1, 1);
-            LocalDate cycleEnd = LocalDate.of(2026, 12, 31);
+            LocalDate today = LocalDate.now();
+            LocalDate cycleStart = today.with(TemporalAdjusters.firstDayOfYear());
+            LocalDate cycleEnd = today.with(TemporalAdjusters.lastDayOfYear());
             log.info("Fetched {} leave type(s) from {} for employeeId={}",
                     leaveTypes == null ? 0 : leaveTypes.length, url, employeeId);
 
             if (leaveTypes != null) {
-                int currentYear = Year.now().getValue();
+                int currentYear = today.getYear();
                 for (LeaveType leaveType : leaveTypes) {
-                    double leavesCount = ProrataLeaveCalculator.calculateProrataLeaves(LocalDate.now(), leaveType.getTotalDays(), ProrataLeaveCalculator.Frequency.valueOf(leaveType.getDisbursalFrequency().name()), cycleStart, cycleEnd);
+                    double leavesCount = ProrataLeaveCalculator.calculateProrataLeaves(today, leaveType.getTotalDays(), ProrataLeaveCalculator.Frequency.valueOf(leaveType.getDisbursalFrequency().name()), cycleStart, cycleEnd);
                     log.info("Prorated leavesCount={} for employeeId={} leaveType={} totalDays={} frequency={} cycleStart={} cycleEnd={}",
                             leavesCount, employeeId, leaveType.getName(), leaveType.getTotalDays(),
                             leaveType.getDisbursalFrequency(), cycleStart, cycleEnd);
@@ -120,14 +124,17 @@ public class LeaveBalanceService {
     public void initializeLeaveBalanceForNewLeaveType(LeaveType leaveType) {
         log.info("initializeLeaveBalanceForNewLeaveType started - leaveType={}", leaveType.getName());
 
-        List<Employee> employees = employeeRepository.findAll();
-        int currentYear = Year.now().getValue();
-        LocalDate cycleStart = LocalDate.of(2026, 1, 1);
-        LocalDate cycleEnd = LocalDate.of(2026, 12, 31);
-        log.info("Fetched {} employee(s) for new leaveType={}", employees.size(), leaveType.getName());
+        List<Employee> employees = employeeRepository.findAll().stream()
+                .filter(DisbursalEligibility::isActive)
+                .collect(Collectors.toList());
+        LocalDate today = LocalDate.now();
+        LocalDate cycleStart = today.with(TemporalAdjusters.firstDayOfYear());
+        LocalDate cycleEnd = today.with(TemporalAdjusters.lastDayOfYear());
+        int currentYear = today.getYear();
+        log.info("Fetched {} active employee(s) for new leaveType={}", employees.size(), leaveType.getName());
 
         for (Employee employee : employees) {
-            double leavesCount = ProrataLeaveCalculator.calculateProrataLeaves(LocalDate.now(), leaveType.getTotalDays(), ProrataLeaveCalculator.Frequency.valueOf(leaveType.getDisbursalFrequency().name()), cycleStart, cycleEnd);
+            double leavesCount = ProrataLeaveCalculator.calculateProrataLeaves(today, leaveType.getTotalDays(), ProrataLeaveCalculator.Frequency.valueOf(leaveType.getDisbursalFrequency().name()), cycleStart, cycleEnd);
             log.info("Prorated leavesCount={} for employeeId={} leaveType={} totalDays={} frequency={} cycleStart={} cycleEnd={}",
                     leavesCount, employee.getEmployeeId(), leaveType.getName(), leaveType.getTotalDays(),
                     leaveType.getDisbursalFrequency(), cycleStart, cycleEnd);
@@ -169,12 +176,22 @@ public class LeaveBalanceService {
         LeaveTracker leaveTracker=leaveTrackerRepository.findById(leaveId).orElseThrow(() -> new RuntimeException("Leave not found"));
         // Deduct from the current year's open balance; earlier years are closed by the year-end rollover.
         int currentYear = Year.now().getValue();
+        long days = WorkingDays.between(leaveTracker.getStartDate(), leaveTracker.getEndDate());
+        if (days == 0) {
+            log.info("Leave {} for employeeId={} covers no working days. Nothing to deduct.", leaveId, employeeId);
+            return;
+        }
+        // Locked, so concurrent approvals for this employee are checked one after the other.
         EmployeeLeaveBalance balance = leaveBalanceRepository
-                .findByEmployeeIdAndLeaveTypeNameAndYearAndIsActiveTrue(employeeId, leaveTracker.getLeaveType(), currentYear)
-                .orElseThrow(() -> new RuntimeException("No active " + leaveTracker.getLeaveType()
+                .findActiveForUpdate(employeeId, leaveTracker.getLeaveType(), currentYear)
+                .orElseThrow(() -> new BusinessException("No active " + leaveTracker.getLeaveType()
                         + " balance for employee " + employeeId + " in " + currentYear));
-        long days = ChronoUnit.DAYS.between(leaveTracker.getStartDate(), leaveTracker.getEndDate()) + 1;
         double availableBefore = balance.getAvailableDays();
+        // The apply-time check can be stale: other leaves may have been approved since.
+        if (days > availableBefore) {
+            throw new BusinessException("Insufficient " + leaveTracker.getLeaveType() + " balance to approve this leave: "
+                    + days + " day(s) requested, " + availableBefore + " available");
+        }
         balance.deductDays(days);
         leaveBalanceRepository.save(balance);
         log.info("Deducted {} day(s) for employeeId={} leaveType={} availableBefore={} availableAfter={}",
@@ -191,8 +208,6 @@ public class LeaveBalanceService {
         transaction.setReason("Leave #" + leaveId);
         leaveTransactionRepository.save(transaction);
         log.info("deductLeaveFromEmployee completed - employeeId={} leaveId={}", employeeId, leaveId);
-        leaveTracker.setStatus("APPROVED");
-        leaveTrackerRepository.save(leaveTracker);
     }
 
     // public void deactivateLeaveType(String leaveTypeId) {

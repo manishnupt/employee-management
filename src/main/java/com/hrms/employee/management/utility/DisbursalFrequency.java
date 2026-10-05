@@ -41,4 +41,25 @@ public enum DisbursalFrequency {
                 return String.valueOf(year);
         }
     }
+
+    /** First day of the disbursal period containing {@code date}, e.g. 1 Oct for 2026-Q4. */
+    public LocalDate periodStart(LocalDate date) {
+        int monthsPerPeriod = 12 / periodsPerYear;
+        int firstMonth = (date.getMonthValue() - 1) / monthsPerPeriod * monthsPerPeriod + 1;
+        return LocalDate.of(date.getYear(), firstMonth, 1);
+    }
+
+    /**
+     * Whole days to credit for the period containing {@code date} when {@code annualDays} is spread
+     * over the year. Periods get the rounded running total minus what earlier periods got, so the
+     * year always adds up to exactly {@code annualDays}: 10/yr monthly gives 1,1,1,0,1,1,1,1,1,0,1,1
+     * rather than 0 or 1 every month.
+     */
+    public int wholeDaysForPeriod(int annualDays, LocalDate date) {
+        int monthsPerPeriod = 12 / periodsPerYear;
+        int periodIndex = (date.getMonthValue() - 1) / monthsPerPeriod + 1;
+        long upToThisPeriod = Math.round((double) annualDays * periodIndex / periodsPerYear);
+        long upToLastPeriod = Math.round((double) annualDays * (periodIndex - 1) / periodsPerYear);
+        return (int) (upToThisPeriod - upToLastPeriod);
+    }
 }

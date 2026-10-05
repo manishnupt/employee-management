@@ -1,7 +1,7 @@
 package com.hrms.employee.management.service;
 
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
+import java.time.Year;
 import java.util.List;
 import java.util.Optional;
 
@@ -9,6 +9,7 @@ import com.hrms.employee.management.exceptions.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.hrms.employee.management.dao.Employee;
 import com.hrms.employee.management.dao.EmployeeLeaveBalance;
@@ -18,11 +19,14 @@ import com.hrms.employee.management.dto.LeaveTrackerResponse;
 import com.hrms.employee.management.repository.EmployeeLeaveBalanceRepository;
 import com.hrms.employee.management.repository.EmployeeRepository;
 import com.hrms.employee.management.repository.LeaveTrackerRepository;
+import com.hrms.employee.management.utility.WorkingDays;
 
 @Slf4j
 @Service
 public class LeaveTrackerServiceImpl implements LeaveTrackerService {
 
+    private static final String STATUS_PENDING = "Pending";
+    private static final String STATUS_APPROVED = "Approved";
 
     private final LeaveTrackerRepository leaveTrackerRepository;
     private final EmployeeRepository employeeRepository;
@@ -46,7 +50,20 @@ public class LeaveTrackerServiceImpl implements LeaveTrackerService {
         Employee employee = employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
 
-        List<EmployeeLeaveBalance> employeeLeaveBalance =employeeLeaveBalanceRepository.findByEmployeeIdAndIsActiveTrue(employeeId);
+        if (leaveTrackerDto.getStartDate() == null || leaveTrackerDto.getEndDate() == null
+                || leaveTrackerDto.getEndDate().isBefore(leaveTrackerDto.getStartDate())) {
+            throw new BusinessException("Leave end date must be on or after the start date");
+        }
+        // Same days the approval will deduct: weekends don't consume balance.
+        long days = WorkingDays.between(leaveTrackerDto.getStartDate(), leaveTrackerDto.getEndDate());
+        if (days == 0) {
+            throw new BusinessException("The requested dates contain no working days");
+        }
+
+        // Same row the approval will deduct from: this year's open balance for the leave type.
+        int currentYear = Year.now().getValue();
+        List<EmployeeLeaveBalance> employeeLeaveBalance = employeeLeaveBalanceRepository
+                .findByEmployeeIdAndYearAndIsActiveTrue(employeeId, currentYear);
         if (employeeLeaveBalance.isEmpty()) {
             throw new BusinessException("No active leave balance found for employee");
         }
@@ -58,7 +75,6 @@ public class LeaveTrackerServiceImpl implements LeaveTrackerService {
             throw new BusinessException("Leave type not found in employee's leave balance");
 
         }
-        long days = ChronoUnit.DAYS.between(leaveTrackerDto.getStartDate(), leaveTrackerDto.getEndDate()) + 1;
         // Carried-forward days count towards what the employee can take.
         if (days > leaveBalance.get().getAvailableDays()) {
             throw new BusinessException("Insufficient leave balance for the requested leave type");
@@ -68,7 +84,7 @@ public class LeaveTrackerServiceImpl implements LeaveTrackerService {
         leaveTracker.setStartDate(leaveTrackerDto.getStartDate());
         leaveTracker.setEndDate(leaveTrackerDto.getEndDate());
         leaveTracker.setLeaveType(leaveTrackerDto.getLeaveType());
-        leaveTracker.setStatus("Pending");
+        leaveTracker.setStatus(STATUS_PENDING);
         leaveTracker.setReason(leaveTrackerDto.getReason());
 
         LeaveTracker savedLeave = leaveTrackerRepository.save(leaveTracker);
@@ -109,6 +125,7 @@ public class LeaveTrackerServiceImpl implements LeaveTrackerService {
     }
 
     @Override
+    @Transactional
     public LeaveTracker updateLeaveStatus(String employeeId, Long id, String status) {
         LeaveTracker leaveTracker = leaveTrackerRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Leave not found"));
@@ -116,7 +133,17 @@ public class LeaveTrackerServiceImpl implements LeaveTrackerService {
         if (!leaveTracker.getEmployee().getEmployeeId().equals(employeeId)) {
             throw new RuntimeException("Leave does not belong to the specified employee");
         }
-        if(!status.equalsIgnoreCase("Approved")) {
+        String currentStatus = leaveTracker.getStatus();
+        if (status.equalsIgnoreCase(currentStatus)) {
+            // Repeat of a decision already recorded (e.g. a retried request): nothing to change.
+            log.info("Leave {} is already {}. Ignoring status update.", id, currentStatus);
+            return leaveTracker;
+        }
+        if (!STATUS_PENDING.equalsIgnoreCase(currentStatus)) {
+            throw new BusinessException("Leave is already " + currentStatus + " and cannot be changed to " + status);
+        }
+        // Only an approval consumes balance; a rejection leaves it untouched.
+        if (STATUS_APPROVED.equalsIgnoreCase(status)) {
             leaveBalanceService.deductLeaveFromEmployee(employeeId, id);
         }
 

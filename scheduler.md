@@ -1,522 +1,253 @@
-# Disbursal Scheduler — Audit, Flow Breaks & Pending Work
+# Disbursal Scheduler — Status & Open Issues
 
-Scope: leave and WFH balance disbursal in `employee-management`. This covers the cron jobs,
-prorata on joining, initialization, and the deduct paths that use the balances the scheduler writes.
-Branch at time of audit: `feature/proratacalc` (HEAD `19fe220`). Fixes for 2.1, 2.3 and 2.4 landed after
-the audit (see [Section 9](#9-change-log)).
+Scope: leave and WFH balance disbursal in `employee-management` — the cron jobs, prorata on joining,
+year-end rollover, and the approval paths that deduct from the balances. Branch: `feature/proratacalc`.
+
+**How it all works is in [scheduler-flow.md](scheduler-flow.md).** This file lists only what is
+still open: deployment prerequisites, data fixes and known gaps.
 
 Related docs: [leave.md](leave.md), [wfh.md](wfh.md), [employee-leave-balance.md](employee-leave-balance.md).
 
 ---
 
-## TL;DR — Is it foolproof?
+## 1. Status
 
-**No.** The scheduler works only in a narrow case: one pod, one tenant (the default `tomato`), the
-Company service up at midnight, no duplicate balance rows, and the calendar year 2026. Outside that
-case it fails in several ways:
+The correctness bugs found in the original audit are fixed in code. The scheduler is **not yet safe
+to deploy** until the DB changes in [section 2](#2-before-deploying--db-changes) are run, and
+balances written by the old code still need the data fixes in [section 3](#3-data-fixes-for-existing-balances).
 
-| # | Problem | Impact |
-|---|---|---|
-| 1 | ~~Cron jobs run with **no tenant context**~~ ✅ fixed | Only the default tenant gets disbursals. Other tenants get nothing. |
-| 2 | Prorata on joining **credits the rest of the year**, and the scheduler then **credits the same periods again** | New joiners on monthly, quarterly or half-yearly types get roughly double their entitlement. |
-| 3 | ~~**No idempotency or distributed lock**~~ ✅ fixed | 2 replicas, a retry or a repeated manual POST each credit again. |
-| 4 | **Hard-coded 2026 cycle** in prorata calls | From 1 Jan 2027, every new joiner is prorated to **0**. |
-| 5 | WFH scheduler **inserts a new row every run** and uses **integer division** | Balance rows pile up, WFH deduction then throws, and small allotments round to 0. |
-| 6 | Leave approval logic is **inverted** | Rejected leaves deduct balance and approved leaves do not. |
-| 7 | ~~**No year-end rollover or carry-forward**~~ ✅ fixed | Balances never reset, and the `year` column goes stale, so the current-year GET returns nothing in 2027. |
-| 8 | Manual disburse endpoints are **unauthenticated** | Anyone who can reach the service can inflate every balance. |
-
-Items 2 and 4–6 are still open correctness bugs that will produce wrong balances in production. Fix them
-before relying on the scheduler.
+| Original problem | Status |
+|---|---|
+| Cron ran with no tenant context; only the default tenant was credited | Fixed |
+| Prorata on joining credited the rest of the year, and the scheduler credited it again | Fixed |
+| No idempotency or cross-replica lock | Fixed (`disbursal_run` claim) |
+| Per-type disbursal not transactional; one type failing aborted the rest | Fixed |
+| Hard-coded 2026 cycle | Fixed (current calendar year) |
+| Deleted / inactive employees and current-period joiners were credited | Fixed |
+| No year-end rollover, carry-forward or lapse | Fixed for leave. WFH has none (5.4) |
+| WFH scheduler inserted a row every run, never set `year`, truncated to 0 | Fixed |
+| WFH deduction failed once an employee had more than one balance row | Fixed |
+| WFH refund endpoint broken | Fixed |
+| Leave approval logic inverted (reject deducted, approve did not) | Fixed |
+| Leave deduct: no balance re-check, no lock, calendar days | Fixed |
+| Ledger did not record the real amount, before/after or reason | Fixed for leave and WFH |
+| Manual disburse / initialize endpoints are unauthenticated | **Open** (4.1) |
 
 ---
 
-## 1. Current Flow (as implemented)
+## 2. Before deploying — DB changes
 
+`ddl-auto=none` and there is no startup initializer, so the app creates nothing. Run all of this in
+**every tenant database**. A tenant onboarded later needs the same as part of its onboarding.
+
+```sql
+-- 1. Period claim table. Without it nothing is disbursed for the tenant.
+CREATE TABLE IF NOT EXISTS disbursal_run (
+    id                BIGSERIAL PRIMARY KEY,
+    tenant_id         VARCHAR(100)     NOT NULL,
+    kind              VARCHAR(20)      NOT NULL,   -- LEAVE / WFH / LEAVE_ROLLOVER
+    type_name         VARCHAR(255)     NOT NULL,
+    frequency         VARCHAR(20)      NOT NULL,
+    period_key        VARCHAR(20)      NOT NULL,   -- 2026-10, 2026-Q4, 2026-H2, 2026
+    days_per_employee DOUBLE PRECISION NOT NULL,
+    created_at        TIMESTAMP        NOT NULL DEFAULT now(),
+    CONSTRAINT uk_disbursal_run UNIQUE (tenant_id, kind, type_name, period_key)
+);
+
+-- 2. Fractional carry-forward (was integer)
+ALTER TABLE employee_leave_balance ALTER COLUMN carry_forward_days TYPE DOUBLE PRECISION;
+
+-- 3. Leave ledger detail (nullable: older rows have none)
+ALTER TABLE leave_transactions
+    ADD COLUMN IF NOT EXISTS year           INTEGER,
+    ADD COLUMN IF NOT EXISTS balance_before DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS balance_after  DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS reason         VARCHAR(255);
+
+-- 4. WFH ledger detail. Without these every WFH credit, debit and init fails on insert.
+ALTER TABLE wfh_transactions
+    ADD COLUMN IF NOT EXISTS year           INTEGER,
+    ADD COLUMN IF NOT EXISTS balance_before DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS balance_after  DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS reason         VARCHAR(255);
+
+-- 5. Rollover and disbursal look up by year
+CREATE INDEX IF NOT EXISTS idx_elb_year_active ON employee_leave_balance (year, is_active);
+
+-- 6. New leave ledger types LAPSE / CARRY_FORWARD_OUT: if Hibernate once generated a CHECK
+--    constraint on transaction_type, inserts of the new values fail. Find and drop it:
+SELECT conname FROM pg_constraint WHERE conrelid = 'leave_transactions'::regclass AND contype = 'c';
+-- ALTER TABLE leave_transactions DROP CONSTRAINT <name>;
 ```
-                       ┌──────────────── Company service ────────────────┐
-                       │ /leave-types, /wfh-types           (init)       │
-                       │ /leave-types/schedule/{freq}       (cron)       │
-                       │ /wfh-types/schedule/{freq}         (cron)       │
-                       └─────────────────────────────────────────────────┘
-                                   ▲                         ▲
-  createEmployee ──► initialize*ForNewEmployee          @Scheduled cron (00:00, JVM TZ)
-                     (prorata, joinDate = now(),        monthly / quarterly / half_yearly / yearly
-                      cycle = 2026-01-01..2026-12-31)         │
-                                   │                         ▼
-                                   ▼               Leave: findAll employees + findAll balances
-                         employee_leave_balance            → add totalDays/divisor → saveAll
-                         employee_wfh_balance      WFH:   new row per employee   → saveAll
-                         *_transactions (ledger)
-                                   │
-  PUT /{id}/status ──► updateLeaveStatus / updateWFHStatus ──► deduct*
+
+The `uk_disbursal_run` constraint is required: the claim's `ON CONFLICT` targets exactly those columns.
+
+---
+
+## 3. Data fixes for existing balances
+
+The code fixes do not correct what the old code already wrote. Decide each of these per tenant.
+
+### 3.1 Balances initialized under the old prorata
+Anyone who joined before the prorata fix was credited the **rest of the year** at joining, and the
+scheduler then credited the same periods again. Those rows are still inflated, and the scheduler
+keeps adding to them. They need a one-off correction.
+
+### 3.2 Leaves decided under the inverted approval logic
+Leaves **rejected** under the old code had balance deducted; leaves **approved** did not. Find them
+by comparing `leave_tracker.status` with the `DEBIT` rows in `leave_transactions`
+(`reason = 'Leave #<id>'`; older rows have no reason).
+
+### 3.3 Legacy WFH rows with `year = 0`
+Rows written by the old WFH scheduler have `year = 0`. They are now ignored by reads, deduction and
+disbursal, so a balance that lives only in those rows disappears from the employee's view.
+
+```sql
+SELECT employee_id, wfh_type_name, count(*) AS row_count, sum(wfh_balance) AS days
+FROM employee_wfh_balance WHERE year = 0 GROUP BY employee_id, wfh_type_name;
 ```
 
-| Job | Cron | Divisor | Leave method | WFH method |
-|---|---|---|---|---|
-| Monthly | `0 0 0 1 * ?` | 12 | `disburseMonthlyLeave` | `disburseMonthlyWFH` |
-| Quarterly | `0 0 0 1 1,4,7,10 ?` | 4 | `disburseQuarterlyLeave` | `disburseQuarterlyWFH` |
-| Half-yearly | `0 0 0 1 1,7 ?` | 2 | `disburseHalfYearlyLeave` | `disburseHalfYearlyWFH` |
-| Yearly | `0 0 0 1 1 ?` | 1 | `disburseYearlyLeave` | `disburseYearlyWFH` |
+Each old row holds one period's credit, not a running total. Either fold what is genuinely owed into
+the employee's current-year row, or delete the rows and let the scheduler credit from the next period.
 
 ---
 
-## 2. Flow Breaks — Scheduler (Critical)
+## 4. Open issues — scheduler and platform
 
-### 2.1 Cron threads have no tenant → only the default tenant is processed — ✅ FIXED
-> **How it works now**
-> - **Tenant list:** each cron job gets its tenants by calling the tenant microservice directly.
->   `TenantRegistry` calls `GET ${tenant.config.api.url}` (`/api/v1/tenants/databases`) through the
->   shared `RestTemplate` bean.
-> - **Not tied to `MultiTenantConfiguration`:** the scheduler doesn't read tenants from it, because
->   multi-tenant config is moving to a separate common library.
-> - **Fresh list every run:** tenants onboarded after startup are included.
-> - **Per-tenant context:** for each tenant, `TenantJobRunner` sets `TenantContext` before the job and
->   clears it in `finally`. That makes both the DB connection (`MultitenantDataSource`) and the
->   outbound `X-Tenant-Id` header to the Company service point at that tenant.
-> - **Failure isolation:** if one tenant fails, it is logged and the loop moves on to the next.
-> - **Manual endpoints** (`/employee/leave-balance/disburse-*`) still run only for the tenant in the
->   request's `X-Tenant-Id`.
->
-> **Behaviour on failure**
-> - **Tenant API down or non-2xx:** the whole cron run is skipped and logged. No tenant is credited,
->   so nothing is half-done. A later or manual run can still credit the period, because nothing
->   was claimed.
-> - **Tenant in the API but not in this pod's datasource map:** for example, a tenant onboarded after
->   startup. `MultitenantDataSource` throws for that tenant only, it is logged, and the others continue.
->   This goes away once the common library resolves datasources dynamically.
->
-> Code: `utility/TenantRegistry.java`, `utility/TenantJobRunner.java`, `utility/TenantContext.clear()`.
->
-> *Original finding, kept for reference:*
+### 4.1 Endpoints are unauthenticated
+- `spring-security` is not on the classpath and `@CrossOrigin("*")` is set. This covers every
+  `/disburse-*`, `/initialize*`, `/rollover-leave-year` and the WFH refund endpoint.
+- The disburse and rollover endpoints are idempotent per period, so they can no longer be used to
+  inflate balances. **The `/initialize*` endpoints are not** (4.2): each call adds a row.
+- **Fix:** restrict to an admin role or the internal network.
 
-- `LeaveDisbursalSchedulerService.java:56-59`, `WFHDisbursalSchedulerService.java:71-72`
-- `TenantContext` is a `ThreadLocal` that only `TenantFilter` sets, and only on HTTP request threads.
-  The `@Scheduled` thread never sets it, so `getCurrentTenant()` returns `null`.
-- `MultitenantDataSource` falls back to `defaultTenant` (`tomato`) when the key is `null`. The call
-  to the Company service also sends `X-Tenant-Id: null`.
-- **Result:** every cron run disburses only to `tomato`, using whatever leave types the Company
-  service returns for a null tenant. Other tenants are never credited by cron.
-- **Fix (applied):** iterate over all tenants inside each job: `TenantContext.setCurrentTenant(t)` →
-  run → clear in `finally`. The tenant list comes from the tenant microservice API, not from
-  `MultiTenantConfiguration`.
+### 4.2 Duplicate balance rows / init is not idempotent
+- There is no unique constraint on `(employee_id, leave_type_name, year)` or the WFH equivalent.
+- `/initialize/{employeeId}` and `/initialize-for-new-*-type` always **insert**. A second call creates
+  a second row for the same employee, type and year.
+- Effect of a duplicate leave row:
+  - Scheduler: `Collectors.toMap` throws, so **that leave type** is not credited for the tenant this
+    period. The claim rolls back, so it can be retried once the duplicate is removed.
+  - Rollover: fails loudly, and the tenant's leave disbursals stay blocked until it is removed.
+  - Approval: `findActiveForUpdate` returns more than one row and throws.
+- Effect of a duplicate WFH row: the scheduler credits the oldest and logs a WARN; reads and
+  deduction use both rows.
+- **Fix:** add the unique constraints and make init an upsert.
 
-### 2.2 Prorata on joining + scheduler = double credit
-- `LeaveBalanceService.java:106`, `WfhBalanceServiceImpl.java:160`, `ProrataLeaveCalculator.java:62-83`
-- `calculateProrataLeaves` returns the joiner's entitlement for the **rest of the cycle**: the
-  prorated join period plus **every future full period**. The monthly, quarterly and half-yearly
-  crons then credit those future periods again.
-- Example: 24/yr, MONTHLY, joins 16 Aug 2026.
-  - Init credits ≈ 1.03 (Aug) + 4 × 2 (Sep–Dec) → **9.0**.
-  - Cron credits 2 on each of 1 Sep, 1 Oct, 1 Nov and 1 Dec → **+8**.
-  - Total **17**. The correct total is ~9.
-- The YEARLY frequency is unaffected because it has no further run until 1 Jan.
-- **Fix:** at join time, credit **only the prorated share of the current period**. Let the scheduler
-  credit future periods. For YEARLY, the current period is the whole year, so the result is the same.
+### 4.3 Company service calls: no timeout, retry or catch-up
+- `RestTemplate` has no connect or read timeout. A hung Company service or tenant API blocks the
+  single scheduler thread.
+- No retry. A missed run (pod down at 00:00, Company service down, tenant API down) is **never caught
+  up** automatically; someone must call the manual `/disburse-*` endpoint, and only within the same period.
+- **Fix:** timeouts, retry with backoff, and a startup or hourly check driven by `disbursal_run`
+  ("is `2026-10` done for tenant X?").
 
-### 2.3 No idempotency, no distributed lock — ✅ FIXED
-> **How it works now**
->
-> Each `(tenant, kind, type, period)` is claimed in `disbursal_run` with
-> `INSERT … ON CONFLICT DO NOTHING`, in the **same transaction** as the crediting
-> (`TransactionTemplate`). That transaction covers one leave or WFH type.
->
-> - A second replica or a repeat manual call blocks on the uncommitted claim, then gets 0 rows and skips.
-> - A failed run rolls back its claim, so it can be retried.
->
-> - The period key comes from `DisbursalFrequency.periodKey(date)`: `2026-10` (monthly), `2026-Q4`,
->   `2026-H2`, `2026` (yearly).
-> - A manual `/disburse-*` call is a no-op if the period has already been disbursed. It still works as
->   a backfill when the cron missed the period.
-> - **No ShedLock is needed.** The claim row acts as both the idempotency key and the cross-replica
->   lock, so there is no extra dependency or lock table.
-> - Side effects: 2.4 (missing transaction, one type aborting the rest) and the null-body NPE from
->   2.9 are fixed too.
->
-> Code: `dao/DisbursalRun.java`, `repository/DisbursalRunRepository.claim(...)`, and the
-> `disburse*BySchedule` methods in both scheduler services.
->
-> **Table setup — manual.** The app does **not** create this table, because `ddl-auto=none` and
-> there is no startup initializer. Run this in **every tenant database** before deploying:
->
-> ```sql
-> CREATE TABLE IF NOT EXISTS disbursal_run (
->     id                BIGSERIAL PRIMARY KEY,
->     tenant_id         VARCHAR(100)     NOT NULL,
->     kind              VARCHAR(20)      NOT NULL,   -- LEAVE / WFH
->     type_name         VARCHAR(255)     NOT NULL,
->     frequency         VARCHAR(20)      NOT NULL,
->     period_key        VARCHAR(20)      NOT NULL,   -- 2026-10, 2026-Q4, 2026-H2, 2026
->     days_per_employee DOUBLE PRECISION NOT NULL,
->     created_at        TIMESTAMP        NOT NULL DEFAULT now(),
->     CONSTRAINT uk_disbursal_run UNIQUE (tenant_id, kind, type_name, period_key)
-> );
-> ```
->
-> The `uk_disbursal_run` constraint is required: the claim's `ON CONFLICT` targets those exact
-> columns. Without it the insert errors and nothing is disbursed for that tenant. A tenant
-> onboarded later needs this table created as part of its onboarding.
->
-> **Known gap:** if a type's frequency changes mid-period (e.g. monthly → quarterly in October), it
-> can be credited under both `2026-10` and `2026-Q4`.
->
-> *Original finding, kept for reference:*
+### 4.4 Config points at pre-prod / invalid default
+- `company.service.url=https://api.pp.hrms.work` is hard-coded in `application.properties` and not
+  overridden for prod, so **prod cron and rollover read leave/WFH types from pre-prod**.
+- `company.service.base.url` defaults to `http://localhost:82323`, which is not a valid port. The
+  pre-prod chart sets `COMPANY_BASE_URL`; `charts/emp-mgmt/values/prod.yaml` does not. Without it every
+  init call fails, `createEmployee` swallows the error, and the joiner has **no balances**.
+- `tenant.config.api.url` reads `${TENANT_DB_URL}` and defaults to pre-prod. The prod chart sets
+  `TENANT_DB_CONFIG_URL`, a different name. Check that prod actually resolves the prod tenant list.
+- Init and cron use two different properties for the same Company service.
+- **Fix:** one env-backed property per service, no hard-coded host, fail fast at startup if missing.
 
-- Every invocation unconditionally adds `totalDays / divisor`. Nothing records that a given
-  `(tenant, type, period)` was already disbursed.
-- The chart (`charts/emp-mgmt/values/prod.yaml`) sets `replicas: 2`. Each pod runs the cron, so
-  everyone gets **2×** per run. No ShedLock or Quartz-JDBC dependency is in `pom.xml`.
-- The manual endpoints (`/employee/leave-balance/disburse-*`) are additive too. Calling one twice,
-  or retrying after a timeout, credits twice.
-- **Fix:**
-  - Add a `disbursal_run` table with a unique key `(tenant, kind[LEAVE/WFH], type_name, period_key)`,
-    e.g. `2026-10`, `2026-Q4`, `2026-H2`, `2026`.
-  - Insert first. If the unique key is violated, skip.
-  - ~~Add ShedLock (or equivalent) so only one pod runs each job.~~ Not needed: the claim row in the
-    same transaction already gives cross-replica exclusion.
+### 4.5 Timezone
+- Cron, `LocalDate.now()` and `Year.now()` use the JVM default zone. In a container that is usually
+  UTC, so jobs fire at 05:30 IST, and prorata / "which year" checks near midnight on 31 Dec can land
+  on the wrong side.
+- **Fix:** `@Scheduled(cron = …, zone = "Asia/Kolkata")` and a shared `Clock`.
 
-### 2.4 `disburseLeave` is not transactional (self-invocation) — ✅ FIXED
-> Fixed as part of 2.3. `TransactionTemplate` wraps the claim and credit per type, and each type is in
-> its own try/catch.
+### 4.6 Smaller gaps
 
-- `LeaveDisbursalSchedulerService.java:80,183`, `WFHDisbursalSchedulerService.java:84,87`
-- `@Transactional` on `disburseLeave` / `disburseWFH` is bypassed because the caller is `this`, so
-  the Spring proxy is never involved. Each `saveAll` commits on its own.
-- A failure after `leaveBalanceRepository.saveAll` leaves balances credited with **no ledger rows**.
-- One failing leave type aborts the loop, and the remaining types for that run are silently skipped.
-- **Fix:** move per-type disbursal into a separate bean (or use `TransactionTemplate`). Wrap each type
-  in try/catch so one failure does not block the rest, and record per-type status in `disbursal_run`.
-
-### 2.5 Duplicate balance rows crash the whole leave run
-- `LeaveDisbursalSchedulerService.java:196-204`
-- `Collectors.toMap` throws `IllegalStateException: Duplicate key` if any employee has two rows for
-  the same leave type.
-- Duplicate rows are easy to create:
-  - `/initialize/{employeeId}` is not idempotent.
-  - `/initialize-for-new-leave-type` adds rows for everyone, including people who already have them.
-  - A year rollover (see 2.7) would also add rows.
-- One bad row means **no employee** gets that leave type this period.
-- It also loads **all** balance rows of **all** years and types into memory. This does not scale.
-- **Fix:** add a DB unique constraint `(employee_id, leave_type_name, year)`. Query
-  `findByLeaveTypeNameAndYearAndIsActiveTrue`, and make init an upsert.
-
-### 2.6 Hard-coded 2026 cycle
-- `LeaveBalanceService.java:98-99,125-126`, `WfhBalanceServiceImpl.java:153-154,179-180`
-- `cycleStart = 2026-01-01`, `cycleEnd = 2026-12-31`. From 1 Jan 2027, `joinDate.isAfter(cycleEnd)`
-  makes the calculator return **0.0** for every new joiner.
-- **Fix:** derive the cycle from `Year.now()`, or from a tenant fiscal-year setting supplied by the
-  Company service.
-
-### 2.7 No year-end rollover / carry-forward / lapse — ✅ FIXED
-> **How it works now** — `LeaveYearEndRolloverService` (leave only; WFH is blocked by section 3)
->
-> - **Trigger:** every leave disbursal (cron or manual) first calls `rolloverIfNeeded(tenant, currentYear)`.
->   Whichever 1 Jan job runs first does the rollover; the rest see it done. If rollover fails, that
->   tenant gets **no** credits, so the new year is never credited on top of an un-closed old year.
-> - **Manual:** `POST /employee/leave-balance/rollover-leave-year` (tenant from `X-Tenant-Id`).
-> - **Exactly once:** claims `disbursal_run (kind=LEAVE_ROLLOVER, type_name='*', period_key=<new year>)`
->   in the same transaction as the whole rollover (same mechanism as 2.3). All-or-nothing per tenant.
-> - **Leave types** are the union of the four `/leave-types/schedule/{freq}` responses. An empty union
->   aborts the rollover, so a Company service outage can't lapse every balance.
->
-> **Policy per closing balance** (`remaining = leave_balance + carry_forward_days`)
->
-> | Case | Carried into new year | Lapsed | New-year row |
-> |---|---|---|---|
-> | Type has `carryForward=true` | `min(remaining, maxCarryForwardDays)`; no cap if field absent | rest | yes |
-> | Type has `carryForward=false` | 0 | all | yes (0) |
-> | Type no longer returned by Company service | 0 | all | no |
-> | Employee deleted | 0 | all | no |
-> | `remaining < 0` | 0 (deficit not carried, WARN logged) | 0 | as above |
->
-> The old-year row is kept as a historical snapshot with `is_active=false`. The new-year row starts at
-> `leave_balance=0`, `carry_forward_days=<carried>`. If a new-year row already exists, the carry is added to it.
-> `maxCarryForwardDays` is an **optional** new field on `LeaveDisbursalDto`; the Company service needs
-> to send it for caps to apply.
->
-> **Ledger (`leave_transactions`)** — `days` is always positive; the type gives direction:
->
-> | Type | `year` | Meaning |
-> |---|---|---|
-> | `LAPSE` | closing year | days forfeited (`reason` says why) |
-> | `CARRY_FORWARD_OUT` | closing year | days moved out of the closing year |
-> | `CARRY_FORWARD` | new year | days moved into the new year |
-> | `CREDIT` | year credited | scheduler disbursal, `reason` = e.g. `MONTHLY disbursal 2026-10` |
-> | `DEBIT` | current year | approved leave, `reason` = `Leave #<id>` |
-> | `INITIALIZATION` | year | prorated credit on joining (now the **actual** prorated amount, not `totalDays`) |
->
-> Every entry written by these paths carries `year`, `balance_before`, `balance_after` (both =
-> `leave_balance + carry_forward_days`) and `reason`. Per year:
-> `INITIALIZATION + CREDIT + CARRY_FORWARD − DEBIT − LAPSE − CARRY_FORWARD_OUT = closing balance`.
->
-> **Knock-on changes**
-> - Scheduler disbursal touches only `year = current AND is_active` rows (was: any year), and skips
->   deleted employees so it can't recreate rows the rollover closed (partial 2.8).
-> - Deduction uses the current year's active row, consumes **carry-forward first**, then accrual, and
->   no longer overwrites `remaining_days` (partial 4.2). Previously it used
->   `findByEmployeeIdAndLeaveTypeName(..).get()`, which throws once two years of rows exist.
-> - Apply-time validation counts carried-forward days (`leave_balance + carry_forward_days`).
-> - `carry_forward_days` is now `double` (entity and `LeaveBalanceDto`).
->
-> **DB changes — run manually in every tenant database before deploying:**
->
-> ```sql
-> -- fractional carry-forward (was integer)
-> ALTER TABLE employee_leave_balance ALTER COLUMN carry_forward_days TYPE DOUBLE PRECISION;
->
-> -- ledger detail (nullable: older rows have none)
-> ALTER TABLE leave_transactions
->     ADD COLUMN IF NOT EXISTS year           INTEGER,
->     ADD COLUMN IF NOT EXISTS balance_before DOUBLE PRECISION,
->     ADD COLUMN IF NOT EXISTS balance_after  DOUBLE PRECISION,
->     ADD COLUMN IF NOT EXISTS reason         VARCHAR(255);
->
-> -- new enum values LAPSE / CARRY_FORWARD_OUT: if Hibernate generated a CHECK constraint on
-> -- transaction_type, inserts of the new values will fail. Find and drop/replace it:
-> SELECT conname FROM pg_constraint WHERE conrelid = 'leave_transactions'::regclass AND contype = 'c';
-> -- ALTER TABLE leave_transactions DROP CONSTRAINT <name>;
->
-> -- rollover and disbursal look up by year
-> CREATE INDEX IF NOT EXISTS idx_elb_year_active ON employee_leave_balance (year, is_active);
-> ```
->
-> **Not covered**
-> - WFH rollover (needs section 3 fixed first; WFH rows are created per run with `year = 0`).
-> - Duplicate active rows for one employee/type/year make the rollover **fail loudly** (2.5 still open);
->   the tenant's disbursals stay blocked until the duplicate is removed.
-> - Leave applied in December but approved in January is deducted from the new year's balance.
-> - Tests: `LeaveYearEndRolloverServiceTest` (10 cases: cap, no-carry, deleted employee, discontinued
->   type, negative balance, existing new-year row, already-done, lost claim race, empty types, deduct order).
->
-> *Original finding, kept for reference:*
-
-- `LeaveDisbursalSchedulerService.java:200-222`
-- The leave scheduler matches rows by `(employeeId, leaveName)` **ignoring year**. On 1 Jan 2027 it
-  keeps adding to the 2026 row, and that row keeps `year = 2026`.
-- `getEmployeeLeaveBalances` filters by `Year.now()`, so in 2027 employees see **empty balances**
-  even though credit was added.
-- `carryForward` (on `LeaveDisbursalDto` / `LeaveType`) and `carryForwardDays` are never used.
-  Balances never lapse or reset.
-- **Fix:** add a year-end job that runs **before** the 1 Jan disbursals. It should:
-  1. Close the old-year rows.
-  2. Create new-year rows with `carryForwardDays = carryForward ? min(remaining, cap) : 0`.
-  3. Write `CARRY_FORWARD` ledger entries.
-
-  After that, the scheduler should touch only current-year rows.
-
-### 2.8 Soft-deleted / inactive employees still accrue — 🟡 PARTIAL
-> Leave disbursal and rollover now skip `deleted = true` employees. WFH disbursal, `jobStatus`, and
-> joining-date filtering are still open.
-
-- `employeeRepository.findAll()` at `LeaveDisbursalSchedulerService.java:188` and
-  `WFHDisbursalSchedulerService.java:89`
-- Employees with `deleted = true` (and any `jobStatus` such as exited or notice) are credited every run.
-- **Fix:** filter with `deleted = false`, an active `jobStatus`, and a joining date ≤ period start.
-  Joiners in the current period are already prorated.
-
-### 2.9 Fragile external call handling — 🟡 PARTIAL
-> The null or empty body check is fixed in both schedulers. Timeouts, retry and catch-up of missed runs
-> are still open.
-
-- `getBody().length` → NPE when the body is null (`:71,103,135,167`). The WFH scheduler has no
-  empty/null check at all (`:82`).
-- There is no timeout on `RestTemplate` (`RestTemplateConfig` uses default builder settings), so a
-  hung Company service can block the single scheduler thread.
-- There is no retry, and a missed run (pod down at 00:00, Company service down) is **never caught
-  up**. Spring cron does not backfill.
-- The log message is wrong: monthly logs "No **quarterly** leave types found" (`:72`).
-- **Fix:** add null-safe handling, connect/read timeouts, retry with backoff, and a startup or hourly
-  "catch-up" check driven by `disbursal_run`, e.g. "is `2026-10` done for tenant X?".
-
-### 2.10 Config: prod points to pre-prod, init URL is invalid
-- `company.service.url=https://api.pp.hrms.work` is set only in `application.properties` and is not
-  overridden in `application-prod.properties`, so **prod cron reads leave types from pre-prod**.
-- `company.service.base.url` defaults to `http://localhost:82323`, which is **not a valid port**
-  (it is > 65535). Unless `COMPANY_BASE_URL` is set, every init call fails.
-  `EmployeeServiceImpl.createEmployee:99-111` swallows that error, so the new joiner silently has
-  **no balances**.
-- Init and cron use two different properties for the same service.
-- **Fix:** use one property backed by an env var, with no hard-coded host. Fail fast on startup if
-  it is missing.
-
-### 2.11 Timezone
-- Cron and `Year.now()` / `LocalDate.now()` use the JVM default zone. In a container that is
-  usually UTC, so jobs fire at 05:30 IST. Prorata and "which year" checks near midnight on
-  31 Dec / 1 Jan can land on the wrong side.
-- **Fix:** `@Scheduled(cron = ..., zone = "Asia/Kolkata")`, ideally per-tenant, and pass a `Clock`
-  everywhere.
+| Gap | Effect |
+|---|---|
+| No joining-date field on `Employee`; `createdAt` stands in | Backdated onboarding is prorated from the day the record was created. |
+| Init failure on joining is swallowed | The joiner gets nothing for the join period and is first credited at the next period start. |
+| Only `Active` (or blank) job status accrues | Tenants using other values for people who should accrue (e.g. `Probation`) must add them to `DisbursalEligibility`. |
+| Going inactive mid-period | The employee keeps what was already credited for that period. |
+| Frequency changed mid-period (e.g. monthly → quarterly in October) | The type can be credited under both `2026-10` and `2026-Q4`. |
+| New type launched mid-period, then a manual `/disburse-*` for that period | Init prorates it for everyone, and the manual call credits the full period on top (no claim row exists for a new type). |
+| Calendar year only | A tenant fiscal year (e.g. Apr–Mar) is not supported. |
+| `employeeRepository.findAll()` on every type | All employees are loaded per type per run; does not scale to large tenants. |
 
 ---
 
-## 3. Flow Breaks — WFH Scheduler Specific
+## 5. Open issues — leave
 
-| Issue | Location | Effect |
+| # | Gap | Effect |
 |---|---|---|
-| Always `new EmployeeWfhBalance()`, never increments the existing row | `WFHDisbursalSchedulerService.java:91-97` | A new row per employee per run. The balance is **overwritten in practice** rather than accumulated, and rows grow without bound. |
-| `year` never set on the scheduler rows | same | Rows have `year = 0`. |
-| Integer division: `(int) Math.round(wfh.getTotalDays() / divisor)` | `:95,102,109` | `int / int` truncates **before** rounding. For 10/yr monthly → 0 every month. For 18/yr quarterly → 4 per quarter (16/yr). |
-| `WFHDisbursalDto.wfhType` vs `WfhType.name` | `dto/WFHDisbursalDto.java` | If the schedule endpoint returns `name` like `/wfh-types` does, `wfhTypeName` is **null**. Verify against the Company service contract. |
-| No manual trigger endpoints for WFH | `WFHBalanceController` | Ops cannot backfill a missed run. |
-| No null/empty body check | `:82` | NPE when the Company service returns nothing. |
-
-**Knock-on:** `deductWfhBalance` uses `employeeWfhRepository.findByEmployeeId(employeeId)`, which
-returns a **single** entity (`EmployeeWfhRepository.java:14`). That fails in two cases:
-- After the first monthly cron (or with >1 WFH type), the employee has multiple rows.
-- That gives `IncorrectResultSizeDataAccessException`, and **every WFH approval fails**.
-
-It also never selects by WFH type.
+| 5.1 | Leave credit is rounded to 2 decimals per period | 10/yr monthly credits 0.83 × 12 = 9.96 per year. |
+| 5.2 | Public holidays are deducted | No holiday calendar in this service. `WorkingDays` is the one place to add it. Sat/Sun as the weekend is fixed, not per tenant. |
+| 5.3 | Pending leaves are not reserved | An employee can apply for more than their balance across several pending requests. The excess is refused at approval, not at apply. |
+| 5.4 | No cancel or refund for an approved leave | Once approved, the status cannot change and the days cannot be returned. |
+| 5.5 | Deducted from the year of approval | A leave applied in December and approved in January, or spanning two years, comes entirely out of the approval year. |
+| 5.6 | Two approvals of the **same leave** at the same instant | Both can pass the `Pending` check and deduct twice. The balance row is locked, the `leave_tracker` row is not (no version column). |
+| 5.7 | Rollover checks `deleted` only | An inactive, non-deleted employee still gets a new-year row with their carry-forward, but no further credits. |
+| 5.8 | `maxCarryForwardDays` is optional | The Company service must send it for a cap to apply. Without it, all remaining days carry forward. |
+| 5.9 | Leaves applied before the working-day change | Validated on calendar days, deducted on working days when approved (never more than was validated). |
 
 ---
 
-## 4. Flow Breaks — Deduction Paths (consume scheduler output)
+## 6. Open issues — WFH
 
-### 4.1 Leave approval logic is inverted
-- `LeaveTrackerServiceImpl.java:118-120`
-  ```java
-  if(!status.equalsIgnoreCase("Approved")) {
-      leaveBalanceService.deductLeaveFromEmployee(employeeId, id);
-  }
-  ```
-- **Rejecting** a leave deducts the balance. **Approving** does not.
-- `deductLeaveFromEmployee` also forces `status = "APPROVED"` (`LeaveBalanceService.java:186`).
-  The caller then overwrites it with the requested status.
-- There is no status guard, so rejecting twice deducts twice.
-- **Fix:**
-  - Deduct only on `APPROVED`.
-  - Allow the transition only from `Pending`.
-  - Remove the status mutation from the balance service.
-
-### 4.2 Leave deduct robustness — 🟡 PARTIAL
-> Deduct now uses the current year's active row with a clear error if missing, and apply-time
-> validation counts carry-forward (see 2.7). Concurrent-pending-leave overdraft and calendar-day
-> counting are still open.
-
-- `findByEmployeeIdAndLeaveTypeName(...).get()` has two failure modes:
-  - No row → `NoSuchElementException`.
-  - Multiple rows (duplicates or multiple years) → `IncorrectResultSizeDataAccessException`.
-
-  It should filter by `year` and `isActive`.
-- No balance check at deduct time. The check happens only at apply time, so two pending leaves can
-  each pass validation and together drive the balance negative.
-- Apply-time validation compares against `leaveBalance` only and ignores `carryForwardDays`.
-- Days are counted as calendar days (`DAYS.between + 1`), so weekends and holidays are deducted.
-
-### 4.3 WFH deduct / disburse
-- `wfhTrackerRepository.findById(id).get()` throws before the `== null` check runs
-  (`WfhBalanceServiceImpl.java:63,106`).
-- If `employeeWfhBalance` is null → NPE (`:72,82`).
-- `disburseWfhBalance` looks up `employeeWfhRepository.findById(employeeId)`, which is the
-  **balance PK**, not the employee id. It also never writes a ledger row.
-- `WFHBalanceController.disburseWfhBalance` (`:59`) is missing `@PathVariable` on both params, so
-  the call is `findById(null)` → `IllegalArgumentException`. The endpoint is broken.
-
-### 4.4 Ledger inconsistencies — 🟡 PARTIAL (leave)
-> Leave ledger entries now record the actual amount plus `year`, `balance_before/after`, `reason` (see
-> 2.7). WFH ledger is unchanged.
-
-- `createLeaveBalance` logs the INITIALIZATION transaction with `leaveType.getTotalDays()` instead of
-  the prorated `leavesCount` (`LeaveBalanceService.java:217-218`). The ledger and the balance disagree.
-- The WFH init ledger logs the unrounded `wfhCount` (double), but the balance stores
-  `Math.round(wfhCount)` (int).
-- No `balanceBefore`/`balanceAfter`/`reason`/`period` on transactions (commented out). You cannot
-  audit or reconcile a disbursal run.
+| # | Gap | Effect |
+|---|---|---|
+| 6.1 | `updateWFHStatus` is not transactional | The deduction commits before the status is saved. If the status save fails, the request stays `PENDING` with the balance already deducted, and a retry deducts again. |
+| 6.2 | Status can be changed after approval | An `APPROVED` request can be set to `REJECTED` or anything else with no refund. Only a second approval is blocked. The refund endpoint must be called while the request is still `APPROVED`. |
+| 6.3 | No balance check at apply | A request for more than the balance is accepted and only refused at approval. |
+| 6.4 | No WFH year-end rollover | Unused days do not carry forward; last year's rows stay `is_active = true` but are ignored. |
+| 6.5 | Calendar days are deducted | Weekends and holidays inside a WFH request consume balance. Leave uses working days. |
+| 6.6 | A WFH request has no WFH type | Deduction draws across all the employee's types in type-name order. A refund goes entirely to the first type, even if the deduction came from several. |
+| 6.7 | Refund goes to the current year | A request deducted last year is refunded into this year's balance. |
+| 6.8 | No row lock on WFH deduct or refund | Two approvals, or two refund calls, at the same instant can both pass their checks. |
+| 6.9 | Join credit rounded to a whole day | A joiner's first credit can be off by up to half a day. |
+| 6.10 | `transaction_type` is a free string | Leave uses an enum; WFH does not. |
+| 6.11 | `days_per_employee` in `disbursal_run` varies | Expected with the whole-day spread (e.g. 5,4,5,4); it is that period's amount, not a constant. |
 
 ---
 
-## 5. Prorata Calculator Notes
+## 7. Pending work — checklist
 
-- `joinDate` is `LocalDate.now()` at the call site, not the employee's actual joining date. The
-  `Employee` entity has **no joining-date field**, so backdated onboarding is prorated wrong.
-- `initializeLeaveBalanceForNewLeaveType` prorates **all existing employees** from today.
-  That is acceptable for a mid-year type launch, but it is subject to the same double-credit as 2.2.
-- `getDisbursalFrequency()` being null → NPE. An unknown enum name → `IllegalArgumentException`.
-  Either one aborts init for all types.
-- The result is rounded to the nearest 0.25, while the Javadoc says "2 decimal places".
-  The scheduler rounds to 2 decimals, so 10/yr monthly gives 0.83 × 12 = 9.96/yr (drift).
-- `ProrataLeaveCalculator` and `ProrataWfhCalculator` are line-for-line duplicates, and the former
-  ships a `main()` demo. Merge them into one calculator.
-- There are no unit tests for either calculator or for the scheduler.
-
----
-
-## 6. Security
-
-- `/employee/leave-balance/disburse-{monthly,yearly,quarterly,half-yearly}-leave` and both
-  `/initialize*` endpoints have **no auth**. `spring-security` is not on the classpath and
-  `@CrossOrigin("*")` is set.
-- Combined with 2.3 (non-idempotent), any caller can inflate every employee's balance at will.
-- **Fix:** restrict these to an admin role or internal network. Make them idempotent per period, and
-  have them take an explicit `period` parameter.
-
----
-
-## 7. Pending Work — Prioritised Checklist
-
-### P0 — wrong balances in prod
-- [ ] Fix the inverted approval condition in `LeaveTrackerServiceImpl.updateLeaveStatus`, and add a
-      `Pending`-only transition guard (4.1).
-- [x] Make cron multi-tenant by iterating tenants and setting/clearing `TenantContext` (2.1).
-- [ ] Change prorata to credit only the current period's share (2.2).
-- [x] Add idempotency and cross-replica exclusion via the `disbursal_run` claim row (2.3).
-- [ ] Replace the hard-coded 2026 cycle with the current or fiscal year (2.6).
-- [ ] Rewrite WFH disbursal to upsert and increment, set `year`, and use floating division (3).
-- [ ] Fix `deductWfhBalance` to look up by `(employeeId, wfhTypeName, year)` (3, 4.3).
-- [ ] Point `company.service.url` at the prod value in prod, and fix the invalid
-      `company.service.base.url` default (2.10).
+### P0 — needed for a correct prod rollout
+- [ ] Run the DB changes in section 2 in every tenant database.
+- [ ] Correct balances initialized under the old prorata (3.1).
+- [ ] Correct balances for leaves decided under the inverted logic (3.2).
+- [ ] Clean up legacy `year = 0` WFH rows (3.3).
+- [ ] Point `company.service.url` at prod, set `COMPANY_BASE_URL` in the prod chart, and verify the
+      tenant API env var name (4.4).
+- [ ] Add auth on all disburse / initialize / rollover / refund endpoints (4.1).
 
 ### P1 — robustness
-- [x] Add a real transaction boundary per leave type (separate bean / `TransactionTemplate`), and
-      isolate per-type failures (2.4).
-- [ ] Add a unique constraint `(employee_id, leave_type_name, year)` and make init an upsert (2.5).
-- [ ] Exclude deleted/inactive employees, and add `joiningDate` to `Employee` (2.8, 5).
-- [x] Add a year-end rollover job: carry-forward, lapse, new-year rows (2.7) — leave only.
-- [ ] Add null-safe Company service handling, timeouts, retry, and catch-up of missed runs (2.9).
-- [ ] Fix `disburseWfhBalance` (wrong repo lookup, missing `@PathVariable`, no ledger) (4.3).
-- [ ] Add a balance check at deduct time, and include `carryForwardDays` in validation (4.2).
-- [ ] Pin the cron timezone (2.11).
+- [ ] Unique constraint on `(employee_id, type_name, year)` for both balance tables; make init an upsert (4.2).
+- [ ] `RestTemplate` timeouts, retry, and catch-up of missed runs (4.3).
+- [ ] Pin the cron timezone and use a shared `Clock` (4.5).
+- [ ] Make `updateWFHStatus` transactional and add a `PENDING`-only transition guard like leave (6.1, 6.2).
+- [ ] Add `joiningDate` to `Employee` and use it for prorata and the join-period check (4.6).
+- [ ] Lock or version `leave_tracker` / `wfh_tracker` rows on approval (5.6, 6.8).
 
-### P2 — auditability & hygiene
-- [ ] Ledger: record the actual credited amount, `balanceBefore/After`, `reason`, `period`, `runId` (4.4).
-- [ ] Add manual WFH trigger endpoints that take a `period` param, behind auth (3, 6).
-- [ ] Add auth on all disburse/initialize endpoints (6).
-- [ ] Merge the two prorata calculators, remove `main()`, and align the rounding policy (5).
-- [ ] Unit tests: prorata edge cases (join on period start/end, leap year, Dec joiner), scheduler
-      idempotency, multi-tenant iteration, and the duplicate-row handling.
-- [ ] Use working-day calculation for leave/WFH deduction (exclude weekends/holidays).
-- [ ] Fix the wrong log text in `disburseMonthlyLeave` ("quarterly").
-
----
-
-## 8. Target Design (sketch)
-
-```
-@Scheduled(cron = "0 5 0 1 * ?", zone = "Asia/Kolkata")   // single trigger, monthly
-@SchedulerLock(name = "disbursal")                        // one pod only
-void runDisbursals() {
-  for tenant in tenants:
-    TenantContext.set(tenant)
-    try:
-      if (isJan1) yearEndRollover(tenant)               // before any credit
-      for freq in frequenciesDueToday():                // MONTHLY always; QUARTERLY on 1,4,7,10 …
-        for type in companyService.typesFor(tenant, freq):
-          periodKey = periodKey(freq, today)            // "2026-10", "2026-Q4"
-          if (!disbursalRunRepo.tryInsert(tenant, kind, type, periodKey)) continue   // idempotent
-          txTemplate.execute(() -> creditActiveEmployees(type, freq, periodKey))      // upsert + ledger
-          markRunSuccess(...)
-    catch e: markRunFailed(...); alert
-    finally: TenantContext.clear()
-}
-```
-
-Joining: credit `prorate(currentPeriod, joiningDate)` only. Future periods come from the run above.
-On startup, and hourly, re-run any `disbursal_run` that is missing or failed for the current period.
+### P2 — policy and hygiene
+- [ ] WFH: balance check at apply, working-day counting, a type on the request (6.3, 6.5, 6.6).
+- [ ] WFH year-end rollover, if carry-forward is wanted (6.4).
+- [ ] Holiday calendar for leave deduction (5.2).
+- [ ] Reserve pending leaves at apply time (5.3).
+- [ ] Cancel / refund path for approved leave (5.4).
+- [ ] Align leave credit rounding so the year adds up to `totalDays` (5.1).
+- [ ] Merge the two prorata calculators (line-for-line duplicates) and remove `main()` from
+      `ProrataLeaveCalculator`.
+- [ ] Tests still missing: multi-tenant iteration, leave scheduler idempotency, the row-lock query
+      against real Postgres (covered only through mocks).
 
 ---
 
-## 9. Change Log
+## 8. Change log
 
 | Commit | Change |
 |---|---|
-| `04c5dae` disbursal logic v1 | 2.1 multi-tenant cron, 2.3 `disbursal_run` claim, and 2.4 per-type transactions. |
-| *(uncommitted)* | `TenantRegistry` calls the tenant microservice `api/v1/tenants/databases` directly instead of reading `MultiTenantConfiguration`. Removed `DisbursalRunSchemaInitializer`; the `disbursal_run` table is now created manually (DDL in 2.3). |
-| *(uncommitted)* | 2.7 leave year-end rollover (`LeaveYearEndRolloverService`), carry-forward/lapse ledger entries, current-year-only disbursal/deduction, `POST /rollover-leave-year`, unit tests. Requires the DB changes listed in 2.7. |
+| `04c5dae` disbursal logic v1 | Multi-tenant cron (`TenantJobRunner`), `disbursal_run` claim, per-type transactions. |
+| `8720651` phase 1 refactoring | `TenantRegistry` reads tenants from the tenant microservice; `disbursal_run` created manually. |
+| `909d00d` rollover handling | Leave year-end rollover, carry-forward / lapse ledger entries, current-year-only disbursal and deduction. |
+| *(uncommitted)* | Prorata credits the join period only; cycle from the current calendar year; `DisbursalEligibility`. |
+| *(uncommitted)* | WFH scheduler rewritten: increments the current-year row, whole-day spread, manual `/disburse-*-wfh` endpoints. WFH read, deduct and refund use current-year rows; `EmployeeWfhRepository` removed; WFH ledger detail. |
+| *(uncommitted)* | Leave approval fixed (deduct only on `Approved`, `Pending`-only transitions); balance re-check under a row lock; working-day counting (`WorkingDays`). |

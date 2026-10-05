@@ -8,4 +8,6 @@ import com.hrms.employee.management.dao.WFHTransaction;
 @Repository
 public interface WFHTransactionRepository extends JpaRepository<WFHTransaction, Long> {
 
+    boolean existsByEmployeeIdAndReason(String employeeId, String reason);
+
 }

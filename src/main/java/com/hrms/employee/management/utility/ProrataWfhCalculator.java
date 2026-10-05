@@ -29,14 +29,16 @@ public class ProrataWfhCalculator {
     }
 
     /**
-     * Calculates prorated WFH entitlement for an employee joining mid-cycle.
+     * Calculates the prorated WFH entitlement for the disbursal period the employee joins in
+     * (the month, quarter, half-year or year containing {@code joinDate}). Later periods of the
+     * cycle are not included: the disbursal scheduler credits those when they start.
      *
      * @param joinDate       employee's date of joining
      * @param annualWfhCount total annual WFH day count
      * @param frequency      disbursal frequency
      * @param cycleStart     start date of the WFH cycle (e.g. Jan 1 or fiscal start)
      * @param cycleEnd       end date of the WFH cycle (e.g. Dec 31 or fiscal end)
-     * @return prorated WFH count, rounded to 2 decimal places
+     * @return prorated WFH count for the join period, rounded to the nearest 0.25
      */
     public static double calculateProrataWfh(
             LocalDate joinDate,
@@ -56,32 +58,26 @@ public class ProrataWfhCalculator {
         int monthsPerPeriod = MONTHS_PER_PERIOD.get(frequency);
 
         LocalDate periodStart = cycleStart;
-        double totalWfh = 0.0;
-        boolean foundJoinPeriod = false;
 
-        while (periodStart.isBefore(cycleEnd) || periodStart.isEqual(cycleEnd)) {
+        while (!periodStart.isAfter(cycleEnd)) {
             LocalDate periodEnd = periodStart.plusMonths(monthsPerPeriod).minusDays(1);
             if (periodEnd.isAfter(cycleEnd)) {
                 periodEnd = cycleEnd;
             }
 
-            if (!foundJoinPeriod
-                    && !joinDate.isBefore(periodStart)
-                    && !joinDate.isAfter(periodEnd)) {
-                // This is the join period — prorate it
+            if (!joinDate.isAfter(periodEnd)) {
+                // This is the join period — prorate it. Later periods are credited by the
+                // disbursal scheduler, so counting them here would credit them twice.
                 long totalDays = ChronoUnit.DAYS.between(periodStart, periodEnd) + 1;
                 long remainingDays = ChronoUnit.DAYS.between(joinDate, periodEnd) + 1;
-                totalWfh += wfhPerPeriod * ((double) remainingDays / totalDays);
-                foundJoinPeriod = true;
-            } else if (foundJoinPeriod) {
-                // Full period after the join period
-                totalWfh += wfhPerPeriod;
+                double prorated = wfhPerPeriod * ((double) remainingDays / totalDays);
+                return Math.round(prorated * 4.0) / 4.0;
             }
             // periods before the join period contribute 0
 
             periodStart = periodEnd.plusDays(1);
         }
 
-        return Math.round(totalWfh * 4.0) / 4.0;
+        return 0.0;
     }
 }

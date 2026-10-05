@@ -1,7 +1,9 @@
 package com.hrms.employee.management.repository;
 
 import com.hrms.employee.management.dao.EmployeeLeaveBalance;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -21,6 +23,17 @@ public interface EmployeeLeaveBalanceRepository extends JpaRepository<EmployeeLe
     Optional<EmployeeLeaveBalance> findByEmployeeIdAndLeaveTypeNameAndYearAndIsActiveTrue(String employeeId, String leaveTypeName, int year);
 
     List<EmployeeLeaveBalance> findByLeaveTypeNameAndYearAndIsActiveTrue(String leaveTypeName, int year);
+
+    /**
+     * Same row as findByEmployeeIdAndLeaveTypeNameAndYearAndIsActiveTrue, locked until the transaction
+     * ends, so two approvals for one employee can't both read the same balance and overdraw it.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT elb FROM EmployeeLeaveBalance elb WHERE elb.employeeId = :employeeId "
+            + "AND elb.leaveTypeName = :leaveTypeName AND elb.year = :year AND elb.isActive = true")
+    Optional<EmployeeLeaveBalance> findActiveForUpdate(@Param("employeeId") String employeeId,
+                                                       @Param("leaveTypeName") String leaveTypeName,
+                                                       @Param("year") int year);
 
     List<EmployeeLeaveBalance> findByYearLessThanAndIsActiveTrueOrderByYearAsc(int year);
     @Query("SELECT elb FROM EmployeeLeaveBalance elb WHERE elb.year = :year AND elb.isActive = true")
