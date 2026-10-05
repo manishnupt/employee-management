@@ -1,6 +1,7 @@
 package com.hrms.employee.management.utility;
 
 import com.hrms.employee.management.dao.LeaveTracker;
+import com.hrms.employee.management.dao.Regularization;
 import com.hrms.employee.management.dao.Timesheet;
 import com.hrms.employee.management.dao.WFHTracker;
 import com.hrms.employee.management.dto.ActionItemExtRequest;
@@ -38,6 +39,18 @@ public class ActionItemHelper {
                 type(ActionItemExtRequest.ActionType.WFH).
                 assigneeUserId(assignedManagerId).
                 referenceId(wfhTracker.getId()).
+                build();
+
+    }
+
+    public static ActionItemExtRequest convertToRegularizationRequest(Regularization regularization, String employeeId,
+            String assignedManagerId) {
+        return ActionItemExtRequest.builder().
+                initiatorUserId(employeeId).
+                title("Regularization Notification").
+                type(ActionItemExtRequest.ActionType.REGULARIZATION).
+                assigneeUserId(assignedManagerId).
+                referenceId(regularization.getId()).
                 build();
 
     }

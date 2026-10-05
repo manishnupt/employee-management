@@ -21,6 +21,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import com.hrms.employee.management.dao.Employee;
 import com.hrms.employee.management.dao.EmployeeLeaveBalance;
 import com.hrms.employee.management.dao.LeaveTracker;
+import com.hrms.employee.management.dao.Regularization;
 import com.hrms.employee.management.dao.Timesheet;
 import com.hrms.employee.management.dao.WFHTracker;
 import com.hrms.employee.management.dto.LeaveTrackerDto;
@@ -28,6 +29,7 @@ import com.hrms.employee.management.exceptions.BusinessException;
 import com.hrms.employee.management.repository.EmployeeLeaveBalanceRepository;
 import com.hrms.employee.management.repository.EmployeeRepository;
 import com.hrms.employee.management.repository.LeaveTrackerRepository;
+import com.hrms.employee.management.repository.RegularizationRepository;
 import com.hrms.employee.management.repository.TimesheetRepository;
 import com.hrms.employee.management.repository.WFHTrackerRepository;
 
@@ -45,6 +47,7 @@ class LeaveTrackerServiceImplTest {
     @Mock private LeaveBalanceService leaveBalanceService;
     @Mock private WFHTrackerRepository wfhTrackerRepository;
     @Mock private TimesheetRepository timesheetRepository;
+    @Mock private RegularizationRepository regularizationRepository;
 
     private LeaveTrackerServiceImpl service;
     private LeaveTracker leave;
@@ -56,6 +59,7 @@ class LeaveTrackerServiceImplTest {
         ReflectionTestUtils.setField(service, "leaveBalanceService", leaveBalanceService);
         ReflectionTestUtils.setField(service, "wfhTrackerRepository", wfhTrackerRepository);
         ReflectionTestUtils.setField(service, "timesheetRepository", timesheetRepository);
+        ReflectionTestUtils.setField(service, "regularizationRepository", regularizationRepository);
 
         Employee employee = new Employee();
         employee.setEmployeeId(EMPLOYEE_ID);
@@ -170,6 +174,21 @@ class LeaveTrackerServiceImplTest {
         verify(leaveTrackerRepository, never()).save(any());
     }
 
+    @Test
+    void applyRefusesDatesWithPendingRegularization() {
+        stubApply(10);
+        LocalDate start = LocalDate.of(2026, 10, 8);
+        LocalDate end = LocalDate.of(2026, 10, 12);
+        Regularization regularization = new Regularization();
+        regularization.setWorkDate(LocalDate.of(2026, 10, 9));
+        regularization.setStatus("PENDING");
+        when(regularizationRepository.findPendingInRange(EMPLOYEE_ID, start, end)).thenReturn(List.of(regularization));
+
+        assertThrows(BusinessException.class, () -> service.applyLeave(EMPLOYEE_ID, request(start, end)));
+
+        verify(leaveTrackerRepository, never()).save(any());
+    }
+
     private void stubApply(double availableDays) {
         EmployeeLeaveBalance balance = new EmployeeLeaveBalance();
         balance.setLeaveTypeName("Earned");
@@ -185,5 +204,30 @@ class LeaveTrackerServiceImplTest {
         dto.setStartDate(startDate);
         dto.setEndDate(endDate);
         return dto;
+    }
+
+    @Test
+    void deletingPendingLeaveRemovesIt() {
+        leave.setLinkedActionItemId(99L);
+
+        service.deleteLeave(EMPLOYEE_ID, LEAVE_ID);
+
+        verify(leaveTrackerRepository).delete(leave);
+        verify(actionItemService).deleteActionItem(99L);
+    }
+
+    @Test
+    void deletingApprovedLeaveIsRejected() {
+        leave.setStatus("Approved");
+
+        assertThrows(BusinessException.class, () -> service.deleteLeave(EMPLOYEE_ID, LEAVE_ID));
+        verify(leaveTrackerRepository, never()).delete(any());
+        verify(actionItemService, never()).deleteActionItem(any());
+    }
+
+    @Test
+    void deletingAnotherEmployeesLeaveIsRejected() {
+        assertThrows(BusinessException.class, () -> service.deleteLeave("someone-else", LEAVE_ID));
+        verify(leaveTrackerRepository, never()).delete(any());
     }
 }

@@ -15,14 +15,14 @@ import lombok.Data;
 
 @Entity
 @Data
-public class Timesheet {
+public class Regularization {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne
-    @JoinColumn(name = "employeeId", nullable = false)
+    @JoinColumn(name = "employee_id", nullable = false)
     private Employee employee;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
@@ -31,9 +31,7 @@ public class Timesheet {
     private LocalTime clockIn;
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "HH:mm")
     private LocalTime clockOut;
-    private double totalHours;
+    private String reason;
     private String status;
     private Long linkedActionItemId;
-    /** True when the row was produced by an approved regularization; null on rows that predate the column. */
-    private Boolean isRegularised = false;
 }

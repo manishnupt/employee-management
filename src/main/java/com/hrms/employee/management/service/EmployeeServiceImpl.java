@@ -25,6 +25,7 @@ import org.springframework.web.client.RestTemplate;
 
 import com.hrms.employee.management.dao.Employee;
 import com.hrms.employee.management.dao.LeaveTracker;
+import com.hrms.employee.management.dao.Regularization;
 import com.hrms.employee.management.dao.Timesheet;
 import com.hrms.employee.management.dto.GenerateTokenRequest;
 import com.hrms.employee.management.dto.OnboardKeycloakUserRequest;
@@ -66,6 +67,9 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Autowired
     private LeaveTrackerService leaveTrackerService;
+
+    @Autowired
+    private RegularizationService regularizationService;
 
     @Autowired
     private ActionItemService actionItemService;
@@ -417,6 +421,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         createBacklogActionItemForTimesheets(managerEmpId, employeeId);
         createBacklogActionItemForLeaves(managerEmpId, employeeId);
         createBacklogActionItemforWfh(managerEmpId, employeeId);
+        createBacklogActionItemForRegularizations(managerEmpId, employeeId);
 
     }
 
@@ -425,6 +430,15 @@ public class EmployeeServiceImpl implements EmployeeService {
         for(WFHTracker wfh:unassignedWfhs){
             Long actionItem = actionItemService.createActionItem(employeeId, wfh, managerEmpId);
             wfhService.saveLinkedActionItemId(wfh.getId(), actionItem);
+        }
+
+    }
+
+    private void createBacklogActionItemForRegularizations(String managerEmpId, String employeeId) {
+        List<Regularization> unassignedRegularizations=regularizationService.getUnassignedRegularizations(employeeId);
+        for(Regularization regularization:unassignedRegularizations){
+            Long actionItem = actionItemService.createActionItem(employeeId, regularization, managerEmpId);
+            regularizationService.saveLinkedActionItemId(regularization.getId(), actionItem);
         }
 
     }

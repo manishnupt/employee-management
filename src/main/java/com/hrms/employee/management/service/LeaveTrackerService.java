@@ -19,4 +19,6 @@ public interface LeaveTrackerService {
     void saveLinkedActionItemId(Long id, Long actionItem);
 
     LeaveTracker updateLeaveStatus(String employeeId, Long id, String status);
+
+    void deleteLeave(String employeeId, Long id);
 }

@@ -59,4 +59,14 @@ public class LeaveTrackerController {
         LeaveTracker updatedLeave = leaveTrackerService.updateLeaveStatus(employeeId, id, status);
         return ResponseEntity.ok(updatedLeave);
     }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteLeave(@PathVariable String employeeId, @PathVariable Long id, @RequestHeader(value = "Authorization") String authorization) {
+        String userId = JwtUtil.extractUserId(authorization);
+        if (!userId.equals(employeeId)) {
+            throw new BusinessException("Leave requests can only be deleted for your own employee id.");
+        }
+        leaveTrackerService.deleteLeave(employeeId, id);
+        return ResponseEntity.noContent().build();
+    }
 }

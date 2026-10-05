@@ -67,4 +67,14 @@ public class WFHTrackerController {
         WFHTracker updatedWFH = wfhService.updateWFHStatus(employeeId, id, status);
         return ResponseEntity.ok(updatedWFH);
     }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteWFH(@PathVariable String employeeId, @PathVariable Long id, @RequestHeader(value = "Authorization") String authorization) {
+        String userId = JwtUtil.extractUserId(authorization);
+        if (!userId.equals(employeeId)) {
+            throw new BusinessException("WFH requests can only be deleted for your own employee id.");
+        }
+        wfhService.deleteWFH(employeeId, id);
+        return ResponseEntity.noContent().build();
+    }
 }

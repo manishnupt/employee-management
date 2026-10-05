@@ -186,6 +186,7 @@ public class TimesheetServiceImpl implements TimesheetService {
         dto.setClockIn(timesheet.getClockIn());
         dto.setClockOut(timesheet.getClockOut());
         dto.setStatus(timesheet.getStatus());
+        dto.setIsRegularised(Boolean.TRUE.equals(timesheet.getIsRegularised()));
         if(timesheet.getWorkDate() != null && timesheet.getClockIn() != null && timesheet.getClockOut() != null) {
             dto.setTotalHours(TimesheetUtil.calculateWorkedTimeInWords(timesheet.getWorkDate(),timesheet.getWorkDate(),timesheet.getClockIn(),timesheet.getClockOut()));
         }

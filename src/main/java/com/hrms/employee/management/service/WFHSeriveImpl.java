@@ -7,6 +7,7 @@ import com.hrms.employee.management.dto.WFHTrackerResponse;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.hrms.employee.management.dao.Employee;
 import com.hrms.employee.management.dao.LeaveTracker;
@@ -145,6 +146,25 @@ public class WFHSeriveImpl implements WFHService {
 
         wfhTracker.setStatus(status);
         return wfhRepository.save(wfhTracker);
+    }
+
+    /** A WFH request can be withdrawn only while it is still awaiting a decision. */
+    @Override
+    @Transactional
+    public void deleteWFH(String employeeId, Long id) {
+        WFHTracker wfhTracker = wfhRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("WFH request not found"));
+
+        if (!wfhTracker.getEmployee().getEmployeeId().equals(employeeId)) {
+            throw new BusinessException("WFH request does not belong to the specified employee");
+        }
+        if (!"PENDING".equalsIgnoreCase(wfhTracker.getStatus())) {
+            throw new BusinessException("WFH request is already " + wfhTracker.getStatus()
+                    + " and cannot be deleted. Only a pending WFH request can be deleted.");
+        }
+        wfhRepository.delete(wfhTracker);
+        actionItemService.deleteActionItem(wfhTracker.getLinkedActionItemId());
+        log.info("Pending WFH {} deleted for employee {}", id, employeeId);
     }
 
 }

@@ -4,12 +4,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import com.hrms.employee.management.dao.LeaveTracker;
+import com.hrms.employee.management.dao.Regularization;
 import com.hrms.employee.management.dao.Timesheet;
 import com.hrms.employee.management.dao.WFHTracker;
 import com.hrms.employee.management.dto.ActionItemExtRequest;
@@ -54,6 +56,11 @@ public class ActionItemService {
             request = ActionItemHelper.convertToWFHRequest((WFHTracker)object, employeeId,
                     assignedManagerId);
         }
+        else if (object instanceof Regularization) {
+            log.info("Creating regularization action item");
+            request = ActionItemHelper.convertToRegularizationRequest((Regularization)object, employeeId,
+                    assignedManagerId);
+        }
         else {
             log.info("Unsupported object type for action item creation: {}", object.getClass().getName());
             return null;
@@ -69,6 +76,15 @@ public class ActionItemService {
 
     }
 
-
+    /** Removes the manager's action item when the request it was raised for is deleted. */
+    public void deleteActionItem(Long actionItemId) {
+        if (actionItemId == null)
+            return;
+        String url = utilityBaseUrl + "/action-item/" + actionItemId;
+        log.info("url to delete action item :{}", url);
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-Tenant-Id", TenantContext.getCurrentTenant());
+        restTemplate.exchange(url, HttpMethod.DELETE, new HttpEntity<>(headers), Void.class);
+    }
 
 }

@@ -24,5 +24,9 @@ public interface LeaveTrackerRepository extends JpaRepository<LeaveTracker, Long
     @Query("SELECT l FROM LeaveTracker l WHERE l.employee.employeeId = :employeeId AND UPPER(l.status) = 'APPROVED' AND l.startDate <= :endDate AND l.endDate >= :startDate")
     List<LeaveTracker> findApprovedOverlappingRange(String employeeId, LocalDate startDate, LocalDate endDate);
 
+    /** Pending or approved leaves that overlap [startDate, endDate]; status is matched case-insensitively. */
+    @Query("SELECT l FROM LeaveTracker l WHERE l.employee.employeeId = :employeeId AND UPPER(l.status) IN ('PENDING', 'APPROVED') AND l.startDate <= :endDate AND l.endDate >= :startDate")
+    List<LeaveTracker> findPendingOrApprovedOverlappingRange(String employeeId, LocalDate startDate, LocalDate endDate);
+
     List<LeaveTracker> findByEmployee_EmployeeIdAndLinkedActionItemIdIsNull(String employeeId);
 }

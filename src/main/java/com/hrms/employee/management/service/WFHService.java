@@ -21,4 +21,6 @@ public interface WFHService {
     void saveLinkedActionItemId(Long id, Long actionItem);
 
     WFHTracker updateWFHStatus(String employeeId, Long id, String status);
+
+    void deleteWFH(String employeeId, Long id);
 }

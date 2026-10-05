@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.hrms.employee.management.dao.Employee;
 import com.hrms.employee.management.dao.EmployeeLeaveBalance;
 import com.hrms.employee.management.dao.LeaveTracker;
+import com.hrms.employee.management.dao.Regularization;
 import com.hrms.employee.management.dao.Timesheet;
 import com.hrms.employee.management.dao.WFHTracker;
 import com.hrms.employee.management.dto.LeaveTrackerDto;
@@ -21,6 +22,7 @@ import com.hrms.employee.management.dto.LeaveTrackerResponse;
 import com.hrms.employee.management.repository.EmployeeLeaveBalanceRepository;
 import com.hrms.employee.management.repository.EmployeeRepository;
 import com.hrms.employee.management.repository.LeaveTrackerRepository;
+import com.hrms.employee.management.repository.RegularizationRepository;
 import com.hrms.employee.management.repository.TimesheetRepository;
 import com.hrms.employee.management.repository.WFHTrackerRepository;
 import com.hrms.employee.management.utility.WorkingDays;
@@ -46,6 +48,9 @@ public class LeaveTrackerServiceImpl implements LeaveTrackerService {
     @Autowired
     private TimesheetRepository timesheetRepository;
 
+    @Autowired
+    private RegularizationRepository regularizationRepository;
+
     public LeaveTrackerServiceImpl(LeaveTrackerRepository leaveTrackerRepository, EmployeeRepository employeeRepository,ActionItemService actionItemService
             , EmployeeLeaveBalanceRepository employeeLeaveBalanceRepository) {
         this.leaveTrackerRepository = leaveTrackerRepository;
@@ -66,6 +71,7 @@ public class LeaveTrackerServiceImpl implements LeaveTrackerService {
         }
         validateNoApprovedWfh(employeeId, leaveTrackerDto.getStartDate(), leaveTrackerDto.getEndDate());
         validateNoApprovedTimesheet(employeeId, leaveTrackerDto.getStartDate(), leaveTrackerDto.getEndDate());
+        validateNoPendingRegularization(employeeId, leaveTrackerDto.getStartDate(), leaveTrackerDto.getEndDate());
         // Same days the approval will deduct: weekends don't consume balance.
         long days = WorkingDays.between(leaveTrackerDto.getStartDate(), leaveTrackerDto.getEndDate());
         if (days == 0) {
@@ -140,6 +146,19 @@ public class LeaveTrackerServiceImpl implements LeaveTrackerService {
         }
     }
 
+    /** Leave cannot be requested for a range that includes a day with a regularization pending approval. */
+    private void validateNoPendingRegularization(String employeeId, LocalDate startDate, LocalDate endDate) {
+        List<Regularization> pendingRegularizations = regularizationRepository.findPendingInRange(employeeId, startDate, endDate);
+        if (!pendingRegularizations.isEmpty()) {
+            Regularization regularization = pendingRegularizations.get(0);
+            log.warn("Rejected leave request for employee {} from {} to {}: pending regularization {} on {}",
+                    employeeId, startDate, endDate, regularization.getId(), regularization.getWorkDate());
+            throw new BusinessException(String.format(
+                    "Cannot raise a leave request from %s to %s. A regularization request is pending approval for %s.",
+                    startDate, endDate, regularization.getWorkDate()));
+        }
+    }
+
     @Override
     public LeaveTracker getLeaveById(Long id) {
         return leaveTrackerRepository.findById(id)
@@ -188,6 +207,25 @@ public class LeaveTrackerServiceImpl implements LeaveTrackerService {
 
         leaveTracker.setStatus(status);
         return leaveTrackerRepository.save(leaveTracker);
+    }
+
+    /** A leave request can be withdrawn only while it is still awaiting a decision. */
+    @Override
+    @Transactional
+    public void deleteLeave(String employeeId, Long id) {
+        LeaveTracker leaveTracker = leaveTrackerRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("Leave not found"));
+
+        if (!leaveTracker.getEmployee().getEmployeeId().equals(employeeId)) {
+            throw new BusinessException("Leave does not belong to the specified employee");
+        }
+        if (!STATUS_PENDING.equalsIgnoreCase(leaveTracker.getStatus())) {
+            throw new BusinessException("Leave request is already " + leaveTracker.getStatus()
+                    + " and cannot be deleted. Only a pending leave request can be deleted.");
+        }
+        leaveTrackerRepository.delete(leaveTracker);
+        actionItemService.deleteActionItem(leaveTracker.getLinkedActionItemId());
+        log.info("Pending leave {} deleted for employee {}", id, employeeId);
     }
 
     @Override

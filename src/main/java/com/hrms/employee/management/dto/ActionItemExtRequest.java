@@ -24,6 +24,6 @@ public class ActionItemExtRequest {
     private Long referenceId;
 
     public enum ActionType {
-        TIMESHEET, LEAVE, WFH, EXPENSE, ASSET_REQUEST
+        TIMESHEET, LEAVE, WFH, EXPENSE, ASSET_REQUEST, REGULARIZATION
     }
 }
