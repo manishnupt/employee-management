@@ -1,5 +1,7 @@
 package com.hrms.employee.management.service;
 
+import com.hrms.employee.management.utility.AuthorizationUtil;
+import org.apache.tomcat.util.http.parser.Authorization;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -83,6 +85,7 @@ public class ActionItemService {
         String url = utilityBaseUrl + "/action-item/" + actionItemId;
         log.info("url to delete action item :{}", url);
         HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.AUTHORIZATION, AuthorizationUtil.getAuthorizationHeader());
         headers.set("X-Tenant-Id", TenantContext.getCurrentTenant());
         restTemplate.exchange(url, HttpMethod.DELETE, new HttpEntity<>(headers), Void.class);
     }
