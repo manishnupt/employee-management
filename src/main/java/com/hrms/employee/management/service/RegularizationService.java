@@ -1,5 +1,6 @@
 package com.hrms.employee.management.service;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import com.hrms.employee.management.dao.Regularization;
@@ -10,6 +11,8 @@ public interface RegularizationService {
     RegularizationDto raiseRegularization(String employeeId, RegularizationDto regularizationDto);
 
     List<RegularizationDto> getRegularizationHistory(String employeeId);
+
+    List<RegularizationDto> getRegularizationReportByEmployeeId(String employeeId, LocalDate startDate, LocalDate endDate);
 
     RegularizationDto getRegularizationById(String employeeId, Long id);
 

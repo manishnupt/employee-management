@@ -5,9 +5,11 @@ import com.hrms.employee.management.dao.LeaveTracker;
 import com.hrms.employee.management.dto.AttendanceReportDto;
 import com.hrms.employee.management.dto.AttendanceReportDto.DailyRecord;
 import com.hrms.employee.management.dto.AttendanceReportDto.DayStatus;
+import com.hrms.employee.management.dto.AttendanceReportDto.RegularizationEntry;
 import com.hrms.employee.management.dto.AttendanceReportDto.RequestEntry;
 import com.hrms.employee.management.dto.AttendanceReportDto.Summary;
 import com.hrms.employee.management.dto.AttendanceReportDto.TimesheetEntry;
+import com.hrms.employee.management.dto.RegularizationDto;
 import com.hrms.employee.management.dto.TimesheetDto;
 import com.hrms.employee.management.dto.WFHTrackerResponse;
 import com.hrms.employee.management.exceptions.BusinessException;
@@ -45,6 +47,8 @@ public class ReportService {
     @Autowired
     private WFHService wfhService;
     @Autowired
+    private RegularizationService regularizationService;
+    @Autowired
     private EmployeeRepository employeeRepository;
 
     public AttendanceReportDto generateReportByEmployeeAndDateRange(String employeeId, LocalDate startDate, LocalDate endDate) {
@@ -71,10 +75,19 @@ public class ReportService {
                         .map(ReportService::toRequestEntry).toList(),
                 startDate, endDate);
 
+        // A day can carry several requests (e.g. one rejected, then re-raised): rejected ones are
+        // dropped and an approved one wins over a pending one.
+        Map<LocalDate, RegularizationEntry> regularizationByDate = regularizationService
+                .getRegularizationReportByEmployeeId(employeeId, startDate, endDate).stream()
+                .filter(r -> r.getWorkDate() != null && isActive(r.getStatus()))
+                .collect(Collectors.toMap(RegularizationDto::getWorkDate, ReportService::toRegularizationEntry,
+                        (a, b) -> !a.isApproved() && b.isApproved() ? b : a));
+
         LocalDate today = LocalDate.now(TimesheetUtil.IST);
         List<DailyRecord> days = new ArrayList<>();
         for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
-            days.add(buildDay(date, today, timesheetByDate.get(date), leaveByDate.get(date), wfhByDate.get(date)));
+            days.add(buildDay(date, today, timesheetByDate.get(date), leaveByDate.get(date), wfhByDate.get(date),
+                    regularizationByDate.get(date)));
         }
 
         return AttendanceReportDto.builder()
@@ -88,7 +101,7 @@ public class ReportService {
     }
 
     private DailyRecord buildDay(LocalDate date, LocalDate today, TimesheetDto timesheet,
-                                 RequestEntry leave, RequestEntry wfh) {
+                                 RequestEntry leave, RequestEntry wfh, RegularizationEntry regularization) {
         boolean weekend = WEEKENDS.contains(date.getDayOfWeek());
         boolean onLeave = leave != null && leave.isApproved();
         boolean onWfh = wfh != null && wfh.isApproved();
@@ -125,6 +138,9 @@ public class ReportService {
         if (wfh != null && !wfh.isApproved()) {
             remarks.add("WFH request pending approval");
         }
+        if (regularization != null && !regularization.isApproved()) {
+            remarks.add("Regularization request pending approval");
+        }
 
         return DailyRecord.builder()
                 .date(date)
@@ -133,6 +149,7 @@ public class ReportService {
                 .timesheet(toTimesheetEntry(timesheet))
                 .leave(leave)
                 .wfh(wfh)
+                .regularization(regularization)
                 .remarks(remarks.isEmpty() ? null : remarks)
                 .build();
     }
@@ -142,6 +159,8 @@ public class ReportService {
         long workedMinutes = 0;
         int daysWithHours = 0;
         int pendingRequestDays = 0;
+        int pendingRegularizationDays = 0;
+        int regularizedDays = 0;
 
         for (DailyRecord day : days) {
             counts.merge(day.getStatus(), 1, Integer::sum);
@@ -153,8 +172,15 @@ public class ReportService {
             boolean workingDay = !WEEKENDS.contains(day.getDate().getDayOfWeek());
             boolean pending = (day.getLeave() != null && !day.getLeave().isApproved())
                     || (day.getWfh() != null && !day.getWfh().isApproved());
-            if (workingDay && pending) {
+            boolean pendingRegularization = day.getRegularization() != null && !day.getRegularization().isApproved();
+            if ((workingDay && pending) || pendingRegularization) {
                 pendingRequestDays++;
+            }
+            if (pendingRegularization) {
+                pendingRegularizationDays++;
+            }
+            if (day.getTimesheet() != null && day.getTimesheet().isRegularised()) {
+                regularizedDays++;
             }
         }
 
@@ -172,7 +198,9 @@ public class ReportService {
                 .leaveDays(counts.getOrDefault(DayStatus.ON_LEAVE, 0))
                 .absentDays(counts.getOrDefault(DayStatus.ABSENT, 0))
                 .upcomingDays(counts.getOrDefault(DayStatus.UPCOMING, 0))
+                .regularizedDays(regularizedDays)
                 .pendingRequestDays(pendingRequestDays)
+                .pendingRegularizationDays(pendingRegularizationDays)
                 .totalWorkedMinutes(workedMinutes)
                 .totalWorkedHours(TimesheetUtil.formatMinutesInWords(workedMinutes))
                 .averageWorkedHoursPerDay(daysWithHours == 0 ? null
@@ -188,7 +216,7 @@ public class ReportService {
         Map<LocalDate, RequestEntry> byDate = new HashMap<>();
         requests.stream()
                 .filter(r -> r.getStartDate() != null && r.getEndDate() != null)
-                .filter(r -> r.getStatus() == null || !INACTIVE_STATUSES.contains(r.getStatus().toUpperCase(Locale.ROOT)))
+                .filter(r -> isActive(r.getStatus()))
                 .sorted(Comparator.comparing(RequestEntry::isApproved))
                 .forEach(r -> {
                     LocalDate start = r.getStartDate().isBefore(from) ? from : r.getStartDate();
@@ -215,6 +243,7 @@ public class ReportService {
                 .workedMinutes(minutes)
                 .workedHours(minutes != null ? TimesheetUtil.formatMinutesInWords(minutes) : null)
                 .status(ts.getStatus())
+                .regularised(Boolean.TRUE.equals(ts.getIsRegularised()))
                 .build();
     }
 
@@ -239,6 +268,28 @@ public class ReportService {
                 .startDate(wfh.getStartDate())
                 .endDate(wfh.getEndDate())
                 .build();
+    }
+
+    private static RegularizationEntry toRegularizationEntry(RegularizationDto regularization) {
+        Long minutes = null;
+        if (regularization.getClockIn() != null && regularization.getClockOut() != null) {
+            minutes = TimesheetUtil.calculateTotalMinutes(regularization.getWorkDate(), regularization.getWorkDate(),
+                    regularization.getClockIn(), regularization.getClockOut());
+        }
+        return RegularizationEntry.builder()
+                .id(regularization.getRegularizationId())
+                .clockIn(regularization.getClockIn())
+                .clockOut(regularization.getClockOut())
+                .requestedMinutes(minutes)
+                .requestedHours(minutes != null ? TimesheetUtil.formatMinutesInWords(minutes) : null)
+                .status(regularization.getStatus())
+                .approved(isApproved(regularization.getStatus()))
+                .reason(regularization.getReason())
+                .build();
+    }
+
+    private static boolean isActive(String status) {
+        return status == null || !INACTIVE_STATUSES.contains(status.toUpperCase(Locale.ROOT));
     }
 
     private static boolean isApproved(String status) {

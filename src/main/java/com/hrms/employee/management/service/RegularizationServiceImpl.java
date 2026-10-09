@@ -150,6 +150,13 @@ public class RegularizationServiceImpl implements RegularizationService {
     }
 
     @Override
+    public List<RegularizationDto> getRegularizationReportByEmployeeId(String employeeId, LocalDate startDate,
+            LocalDate endDate) {
+        return regularizationRepository.findByEmployee_EmployeeIdAndWorkDateBetween(employeeId, startDate, endDate)
+                .stream().map(this::convertToDto).toList();
+    }
+
+    @Override
     public RegularizationDto getRegularizationById(String employeeId, Long id) {
         return convertToDto(findForEmployee(employeeId, id));
     }

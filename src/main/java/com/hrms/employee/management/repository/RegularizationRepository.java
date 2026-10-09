@@ -12,6 +12,8 @@ public interface RegularizationRepository extends JpaRepository<Regularization, 
 
     List<Regularization> findByEmployee_EmployeeId(String employeeId);
 
+    List<Regularization> findByEmployee_EmployeeIdAndWorkDateBetween(String employeeId, LocalDate startDate, LocalDate endDate);
+
     /** Pending regularizations with a work date in [startDate, endDate]; status is matched case-insensitively. */
     @Query("SELECT r FROM Regularization r WHERE r.employee.employeeId = :employeeId AND UPPER(r.status) = 'PENDING' AND r.workDate BETWEEN :startDate AND :endDate ORDER BY r.workDate")
     List<Regularization> findPendingInRange(String employeeId, LocalDate startDate, LocalDate endDate);
