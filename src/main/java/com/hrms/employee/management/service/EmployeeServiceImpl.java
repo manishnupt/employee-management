@@ -132,7 +132,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Override
     public EmployeeUiResponse getEmployeeById(String employeeId) {
         Employee employee = employeeRepository.findById(employeeId)
-                .filter(emp -> !emp.isDeleted())
+               // .filter(emp -> !emp.isDeleted())
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
         Employee manager= null;
         if(employee.getAssignedManagerId()!=null){
