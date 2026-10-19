@@ -150,8 +150,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         }
         RoleGroupExtResponse groupById=null;
         if(employee.getGroupId()!=null){
-            groupById = employeeCache.getGroup(employee.getGroupId(), this::getAllGroups,
-                    () -> getGroupById(employee.getGroupId()));
+            groupById = getGroupById(employee.getGroupId());
             log.info("retreived data of group:{}",groupById);
         }
         return employeeMapper.
@@ -379,28 +378,6 @@ public class EmployeeServiceImpl implements EmployeeService {
         );
 
         return response.getBody();
-    }
-
-    /** All groups of the current tenant from the admin service (GET /admin/group). */
-    public List<RoleGroupExtResponse> getAllGroups() {
-        String url = adminBaseUrl + "/admin/group";
-        log.info("fetching all groups from :{}", url);
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("X-Tenant-Id", TenantContext.getCurrentTenant());
-
-        ResponseEntity<List<GroupExtResponse>> response = restTemplate.exchange(
-                url,
-                HttpMethod.GET,
-                new HttpEntity<>(headers),
-                new ParameterizedTypeReference<>() {}
-        );
-        List<GroupExtResponse> body = response.getBody();
-        if (body == null) {
-            return List.of();
-        }
-        return body.stream().map(GroupExtResponse::toRoleGroup).toList();
     }
 
     public void grantAdminAccess(String token, String userId, String realmName,String groupId) {
