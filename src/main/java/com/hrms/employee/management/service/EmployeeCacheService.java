@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Supplier;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.connection.RedisConnection;
@@ -21,7 +20,6 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hrms.employee.management.dao.Employee;
 import com.hrms.employee.management.dto.CachedEmployee;
-import com.hrms.employee.management.dto.RoleGroupExtResponse;
 import com.hrms.employee.management.repository.EmployeeRepository;
 import com.hrms.employee.management.utility.TenantContext;
 
@@ -33,7 +31,6 @@ import lombok.extern.log4j.Log4j2;
  *
  * Layout:
  *   hrms:emp:{tenant}:employees  -> hash of employeeId -> CachedEmployee JSON, plus a "__loaded__" marker field
- *   hrms:emp:{tenant}:group:{id} -> RoleGroupExtResponse JSON (from the admin service), short TTL
  *
  * The first read for a tenant loads every employee from the DB (HSETNX, so it never overwrites an entry
  * written by a concurrent update). Writes go through {@link #put(Employee)} after the DB commit.
@@ -54,9 +51,6 @@ public class EmployeeCacheService {
 
     @Value("${employee.cache.ttl-hours:12}")
     private long ttlHours;
-
-    @Value("${employee.cache.group-ttl-minutes:30}")
-    private long groupTtlMinutes;
 
     public EmployeeCacheService(StringRedisTemplate redis, ObjectMapper objectMapper,
             EmployeeRepository employeeRepository) {
@@ -144,33 +138,6 @@ public class EmployeeCacheService {
         } catch (Exception e) {
             log.error("Failed to evict employee cache for tenant {}: {}", tenant, e.getMessage());
         }
-    }
-
-    /** Group details from the admin service, cached for a short time. */
-    public RoleGroupExtResponse getGroup(Long groupId, Supplier<RoleGroupExtResponse> remoteLoader) {
-        String tenant = currentTenant();
-        if (tenant == null || groupId == null) {
-            return remoteLoader.get();
-        }
-        String key = "hrms:emp:" + tenant + ":group:" + groupId;
-        try {
-            String cached = redis.opsForValue().get(key);
-            if (cached != null) {
-                return objectMapper.readValue(cached, RoleGroupExtResponse.class);
-            }
-        } catch (Exception e) {
-            log.warn("Group cache read failed for tenant {}: {}", tenant, e.getMessage());
-            return remoteLoader.get();
-        }
-        RoleGroupExtResponse group = remoteLoader.get();
-        if (group != null) {
-            try {
-                redis.opsForValue().set(key, objectMapper.writeValueAsString(group), Duration.ofMinutes(groupTtlMinutes));
-            } catch (Exception e) {
-                log.warn("Group cache write failed for tenant {}: {}", tenant, e.getMessage());
-            }
-        }
-        return group;
     }
 
     /** Stable order for in-memory paging: name (case-insensitive, nulls last), then id. */

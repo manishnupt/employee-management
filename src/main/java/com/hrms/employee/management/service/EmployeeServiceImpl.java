@@ -150,7 +150,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         }
         RoleGroupExtResponse groupById=null;
         if(employee.getGroupId()!=null){
-            groupById = employeeCache.getGroup(employee.getGroupId(), () -> getGroupById(employee.getGroupId()));
+            groupById = getGroupById(employee.getGroupId());
             log.info("retreived data of group:{}",groupById);
         }
         return employeeMapper.
