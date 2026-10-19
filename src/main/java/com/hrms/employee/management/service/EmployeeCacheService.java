@@ -33,7 +33,7 @@ import lombok.extern.log4j.Log4j2;
  *
  * Layout:
  *   hrms:emp:{tenant}:employees  -> hash of employeeId -> CachedEmployee JSON, plus a "__loaded__" marker field
- *   hrms:emp:{tenant}:group:{id} -> RoleGroupExtResponse JSON (from the admin service), short TTL
+ *   hrms:emp:{tenant}:groups     -> hash of groupId -> RoleGroupExtResponse JSON (all groups from the admin service), short TTL
  *
  * The first read for a tenant loads every employee from the DB (HSETNX, so it never overwrites an entry
  * written by a concurrent update). Writes go through {@link #put(Employee)} after the DB commit.
@@ -146,31 +146,75 @@ public class EmployeeCacheService {
         }
     }
 
-    /** Group details from the admin service, cached for a short time. */
-    public RoleGroupExtResponse getGroup(Long groupId, Supplier<RoleGroupExtResponse> remoteLoader) {
+    /**
+     * Group details from the admin service. All groups of the tenant are loaded with one call
+     * ({@code loadAll}) into a single hash with a short TTL. A group created after that load
+     * falls back to {@code loadOne} and is added to the hash.
+     */
+    public RoleGroupExtResponse getGroup(Long groupId, Supplier<List<RoleGroupExtResponse>> loadAll,
+            Supplier<RoleGroupExtResponse> loadOne) {
         String tenant = currentTenant();
         if (tenant == null || groupId == null) {
-            return remoteLoader.get();
+            return loadOne.get();
         }
-        String key = "hrms:emp:" + tenant + ":group:" + groupId;
+        String key = groupsKey(tenant);
+        String field = String.valueOf(groupId);
+        boolean loaded;
         try {
-            String cached = redis.opsForValue().get(key);
-            if (cached != null) {
-                return objectMapper.readValue(cached, RoleGroupExtResponse.class);
+            List<Object> values = redis.opsForHash().multiGet(key, List.of(field, LOADED_MARKER));
+            if (values.get(0) != null) {
+                return objectMapper.readValue((String) values.get(0), RoleGroupExtResponse.class);
             }
+            loaded = values.get(1) != null;
         } catch (Exception e) {
             log.warn("Group cache read failed for tenant {}: {}", tenant, e.getMessage());
-            return remoteLoader.get();
+            return loadOne.get();
         }
-        RoleGroupExtResponse group = remoteLoader.get();
+
+        if (!loaded) {
+            log.info("Group cache miss for tenant {}, loading all groups", tenant);
+            List<RoleGroupExtResponse> groups = loadAll.get();
+            populateGroups(key, groups);
+            Optional<RoleGroupExtResponse> match = groups.stream()
+                    .filter(g -> groupId.equals(g.getId()))
+                    .findFirst();
+            if (match.isPresent()) {
+                return match.get();
+            }
+        }
+
+        // Group not in the cached list (created after the load): fetch it alone and add it.
+        RoleGroupExtResponse group = loadOne.get();
         if (group != null) {
             try {
-                redis.opsForValue().set(key, objectMapper.writeValueAsString(group), Duration.ofMinutes(groupTtlMinutes));
+                redis.opsForHash().put(key, field, objectMapper.writeValueAsString(group));
             } catch (Exception e) {
                 log.warn("Group cache write failed for tenant {}: {}", tenant, e.getMessage());
             }
         }
         return group;
+    }
+
+    private void populateGroups(String key, List<RoleGroupExtResponse> groups) {
+        try {
+            byte[] rawKey = key.getBytes(StandardCharsets.UTF_8);
+            List<byte[][]> fields = new ArrayList<>();
+            for (RoleGroupExtResponse g : groups) {
+                if (g.getId() != null) {
+                    fields.add(new byte[][] { bytes(String.valueOf(g.getId())), bytes(objectMapper.writeValueAsString(g)) });
+                }
+            }
+            redis.executePipelined((RedisCallback<Object>) (RedisConnection conn) -> {
+                for (byte[][] f : fields) {
+                    conn.hashCommands().hSet(rawKey, f[0], f[1]);
+                }
+                conn.hashCommands().hSet(rawKey, bytes(LOADED_MARKER), bytes("1"));
+                conn.keyCommands().expire(rawKey, Duration.ofMinutes(groupTtlMinutes).toSeconds());
+                return null;
+            });
+        } catch (Exception e) {
+            log.warn("Failed to populate group cache {}: {}", key, e.getMessage());
+        }
     }
 
     /** Stable order for in-memory paging: name (case-insensitive, nulls last), then id. */
@@ -218,6 +262,10 @@ public class EmployeeCacheService {
         }
         String tenant = TenantContext.getCurrentTenant();
         return (tenant == null || tenant.isBlank()) ? null : tenant;
+    }
+
+    private static String groupsKey(String tenant) {
+        return "hrms:emp:" + tenant + ":groups";
     }
 
     private static String employeesKey(String tenant) {
