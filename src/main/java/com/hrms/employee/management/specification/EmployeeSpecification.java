@@ -48,6 +48,38 @@ public class EmployeeSpecification {
         };
     }
 
+    /**
+     * In-memory equivalent of {@link #search} (used for cached employees). Keep the two in sync:
+     * not deleted, and the field starts with any of the values (case-insensitive).
+     */
+    public static boolean matches(Employee employee, EmployeeSearchType searchType, List<String> values) {
+        if (employee.isDeleted()) {
+            return false;
+        }
+        if (searchType == null || CollectionUtils.isEmpty(values)) {
+            return true;
+        }
+        List<String> prefixes = values.stream()
+                .filter(value -> value != null && !value.isBlank())
+                .map(String::toLowerCase)
+                .toList();
+        if (prefixes.isEmpty()) {
+            return true;
+        }
+        String fieldValue = switch (searchType) {
+            case EMPLOYEE_ID -> employee.getEmployeeId();
+            case NAME -> employee.getName();
+            case EMAIL -> employee.getEmail();
+            case PHONE -> employee.getPhone();
+            case PROJECT -> employee.getProject();
+        };
+        if (fieldValue == null) {
+            return false;
+        }
+        String lower = fieldValue.toLowerCase();
+        return prefixes.stream().anyMatch(lower::startsWith);
+    }
+
     private static String resolveField(EmployeeSearchType searchType) {
         return switch (searchType) {
             case EMPLOYEE_ID -> "employeeId";

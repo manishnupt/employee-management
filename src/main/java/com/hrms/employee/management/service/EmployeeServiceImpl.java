@@ -6,6 +6,7 @@ import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import com.hrms.employee.management.dao.WFHTracker;
 import com.hrms.employee.management.dto.*;
@@ -16,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
@@ -74,6 +76,9 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Autowired
     private ActionItemService actionItemService;
 
+    @Autowired
+    private EmployeeCacheService employeeCache;
+
     private final EmployeeRepository employeeRepository;
     private final TimesheetRepository timesheetRepository;
     private final LeaveTrackerRepository leaveTrackerRepository;
@@ -99,6 +104,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         employee.setEmployeeId(userId);
         Employee savedEmployee = employeeRepository.save(employee);
         log.info("saved employee with id: {}", savedEmployee.getEmployeeId());
+        employeeCache.put(savedEmployee);
 
         intializeLeaveAndWfhBalance(userId);
 
@@ -126,23 +132,25 @@ public class EmployeeServiceImpl implements EmployeeService {
         Employee employee = employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
         employeeMapper.updateEntity(employee, employeeDto);
-        return employeeRepository.save(employee);
+        Employee saved = employeeRepository.save(employee);
+        employeeCache.put(saved);
+        return saved;
     }
 
     @Override
     public EmployeeUiResponse getEmployeeById(String employeeId) {
-        Employee employee = employeeRepository.findById(employeeId)
+        Employee employee = employeeCache.findById(employeeId)
                // .filter(emp -> !emp.isDeleted())
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
         Employee manager= null;
         if(employee.getAssignedManagerId()!=null){
-            manager= employeeRepository.findById(employee.getAssignedManagerId())
+            manager= employeeCache.findById(employee.getAssignedManagerId())
                     .orElseThrow(() -> new RuntimeException("Manager not found"));
             log.info("manager name is :{}",manager.getName());
         }
         RoleGroupExtResponse groupById=null;
         if(employee.getGroupId()!=null){
-            groupById = getGroupById(employee.getGroupId());
+            groupById = employeeCache.getGroup(employee.getGroupId(), () -> getGroupById(employee.getGroupId()));
             log.info("retreived data of group:{}",groupById);
         }
         return employeeMapper.
@@ -151,7 +159,14 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     public Page<Employee> getAllEmployees(EmployeeSearchType searchType, List<String> values, int page, int size) {
-        return employeeRepository.findAll(EmployeeSpecification.search(searchType, values), PageRequest.of(page, size));
+        PageRequest pageRequest = PageRequest.of(page, size);
+        List<Employee> matches = employeeCache.getAll().stream()
+                .filter(emp -> EmployeeSpecification.matches(emp, searchType, values))
+                .sorted(EmployeeCacheService.DEFAULT_ORDER)
+                .toList();
+        int from = (int) Math.min(pageRequest.getOffset(), matches.size());
+        int to = Math.min(from + size, matches.size());
+        return new PageImpl<>(matches.subList(from, to), pageRequest, matches.size());
     }
 
     @Override
@@ -163,21 +178,22 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new RuntimeException("Employee already deleted");
         }
         employee.setDeleted(true);
-        employeeRepository.save(employee);
+        employeeCache.put(employeeRepository.save(employee));
         log.info("soft deleted employee with id: {}", employeeId);
     }
 
     @Override
     public EmployeeCountDto getEmployeeCounts() {
-        long totalEmployees = employeeRepository.count();
-        long activeEmployees = employeeRepository.countByJobStatus("Active");
+        List<Employee> all = employeeCache.getAll();
+        long totalEmployees = all.size();
+        long activeEmployees = all.stream().filter(emp -> "Active".equals(emp.getJobStatus())).count();
         return new EmployeeCountDto(totalEmployees, activeEmployees);
     }
 
     @Override
     public EmployeeReportResponse getEmployeeReportById(String employeeId, int month, int year) {
 
-        Employee employee = employeeRepository.findById(employeeId)
+        Employee employee = employeeCache.findById(employeeId)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
 
         YearMonth yearMonth = YearMonth.of(year, month);
@@ -298,11 +314,11 @@ public class EmployeeServiceImpl implements EmployeeService {
     }
 
     public List<Employee> findUnassignedEmployees() {
-        return employeeRepository.findByGroupIdIsNull();
+        return employeeCache.getAll().stream().filter(emp -> emp.getGroupId() == null).toList();
     }
 
     public List<Employee> findEmployeesByGroup(Long groupId) {
-        return employeeRepository.findByGroupId(groupId);
+        return employeeCache.getAll().stream().filter(emp -> Objects.equals(groupId, emp.getGroupId())).toList();
     }
 
     @Override
@@ -314,7 +330,7 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new RuntimeException("Group already present");
         }
         emp.setGroupId(groupId);
-        employeeRepository.save(emp);
+        employeeCache.put(employeeRepository.save(emp));
         log.info("assigned group to user");
         RoleGroupExtResponse groupById = getGroupById(groupId);
         log.info("retreived data of group:{}",groupById);
@@ -337,7 +353,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         String kcToken=getKeycloakToken(masterRealmDetails);
         removeUserFromGroup(kcToken,employeeId,TenantContext.getCurrentTenant(),groupById.getKcGroupIdRef());
         emp.setGroupId(null);
-        employeeRepository.save(emp);
+        employeeCache.put(employeeRepository.save(emp));
     }
 
     public RoleGroupExtResponse getGroupById(Long groupId) {
@@ -413,7 +429,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         createBacklogActionItemForManager(managerEmpId,employeeId);
 
         emp.setAssignedManagerId(managerEmpId);
-        employeeRepository.save(emp);
+        employeeCache.put(employeeRepository.save(emp));
     }
 
     // This method is a placeholder for creating a backlog action item for the manager when they are assigned to an employee.
@@ -469,12 +485,12 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new RuntimeException("Manager not assigned to this employee");
         }
         emp.setAssignedManagerId(null);
-        employeeRepository.save(emp);
+        employeeCache.put(employeeRepository.save(emp));
     }
 
     @Override
     public Employee findEmployeesByKcRefId(String kcRefId) {
-        return employeeRepository.findById(kcRefId)
+        return employeeCache.findById(kcRefId)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
     }
 
